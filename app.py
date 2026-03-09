@@ -27,17 +27,26 @@ def get_live_position(df):
     """
     Calcula a posição atualizada com base na cotação do site ou original.
     """
+    if df is None or df.empty:
+        # Garante que pelo menos a coluna Posicao_Live exista para não quebrar cálculos de soma
+        if df is None:
+            return pd.DataFrame(columns=['Posicao_Live'])
+        if 'Posicao_Live' not in df.columns:
+            df['Posicao_Live'] = 0.0
+        return df
+
     df = df.copy()
     
-    # Garantir que todas as colunas essenciais sejam numéricas
+    # Garantir que as colunas básicas existam para evitar KeyError
     for col in ['Quantidade', 'Posicao', 'Cotacao']:
-        if col in df.columns:
+        if col not in df.columns:
+            df[col] = 0.0
+        else:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
     # RECOVER: Se Posicao é 0 mas temos Quantidade e Cotacao, calcular Posicao
-    if 'Posicao' in df.columns and 'Quantidade' in df.columns and 'Cotacao' in df.columns:
-        mask = (df['Posicao'] == 0) & (df['Quantidade'] > 0) & (df['Cotacao'] > 0)
-        df.loc[mask, 'Posicao'] = df.loc[mask, 'Quantidade'] * df.loc[mask, 'Cotacao']
+    mask = (df['Posicao'] == 0) & (df['Quantidade'] > 0) & (df['Cotacao'] > 0)
+    df.loc[mask, 'Posicao'] = df.loc[mask, 'Quantidade'] * df.loc[mask, 'Cotacao']
     
     if 'Cotacao_Site' in df.columns:
         # Converter cotação do site para float
