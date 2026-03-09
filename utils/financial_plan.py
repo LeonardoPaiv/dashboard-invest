@@ -24,7 +24,7 @@ def get_default_plan():
 
 def load_financial_plan():
     plan = get_data("financial_plan")
-    if not plan:
+    if not plan or not plan.get("monthly_data"):
         return get_default_plan()
     return plan
 
@@ -32,7 +32,14 @@ def save_financial_plan(plan_data):
     save_data("financial_plan", plan_data)
 
 def calculate_projection(plan_data, current_equity=0, years=1):
-    monthly_df = pd.DataFrame(plan_data["monthly_data"])
+    data = plan_data.get("monthly_data", [])
+    if not data:
+        # Avoid KeyError if data is empty
+        empty_monthly = pd.DataFrame(columns=["Mês", "Incoming (R$)", "Gastos (R$)", "Meta (%)", "Investimento Adicional (R$)", "Saldo Mensal (R$)", "Investimento Total (R$)", "Meta (R$)"])
+        empty_proj = pd.DataFrame(columns=["Período", "Ano", "Mês", "Aporte (R$)", "Rendimento (R$)", "Patrimônio Acumulado (R$)"])
+        return empty_monthly, empty_proj
+
+    monthly_df = pd.DataFrame(data)
     rate = pd.to_numeric(plan_data.get("expected_return_monthly", 0.8), errors='coerce') / 100
     
     # Garantir colunas numéricas
@@ -40,6 +47,8 @@ def calculate_projection(plan_data, current_equity=0, years=1):
     for col in cols:
         if col in monthly_df.columns:
             monthly_df[col] = pd.to_numeric(monthly_df[col], errors='coerce').fillna(0)
+        else:
+            monthly_df[col] = 0.0
             
     # Cálculos base da tabela mensal (Superior)
     monthly_df["Saldo Mensal (R$)"] = monthly_df["Incoming (R$)"] - monthly_df["Gastos (R$)"]

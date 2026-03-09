@@ -96,15 +96,25 @@ st.sidebar.title("Configurações")
 
 # --- Seção de Dados ---
 with st.sidebar.expander("📁 Importar / Exportar Dados", expanded=False):
-    st.markdown("### Exportar")
-    if st.button("Gerar Arquivo de Backup"):
-        data_json = export_all_data()
-        st.download_button(
-            label="Download Backup (.json)",
-            data=data_json,
-            file_name=f"invest_backup_{datetime.now().strftime('%Y%m%d')}.json",
-            mime="application/json"
-        )
+    # Status de Persistência
+    if st.session_state.get("initialized", False):
+        st.success("✅ Conectado ao LocalStorage")
+    else:
+        st.warning("⏳ Aguardando LocalStorage...")
+        if st.button("Tentar Reconectar"):
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown("### Backup")
+    b_col1, b_col2 = st.columns(2)
+    with b_col1:
+        if st.button("💾 Forçar Salve"):
+            st.session_state.sync_required = True
+            st.rerun()
+    with b_col2:
+        if st.button("📥 Gerar JSON"):
+            data_json = export_all_data()
+            st.download_button(label="Download", data=data_json, file_name=f"invest_backup_{datetime.now().strftime('%Y%m%d')}.json")
     
     st.markdown("---")
     st.markdown("### Importar")
@@ -140,16 +150,22 @@ data = None
 file_content = None
 
 if uploaded_file:
-    file_content = uploaded_file.read()
     if 'last_uploaded' not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
+        file_content = uploaded_file.read()
         save_to_history(uploaded_file.name, file_content)
         st.session_state.last_uploaded = uploaded_file.name
-    st.toast("✅ Arquivo carregado e salvo!")
+        st.toast("✅ Arquivo carregado e salvo!")
+        st.rerun()
+    else:
+        # Just retrieve the content if already uploaded
+        _, file_content = get_latest_history_content()
 else:
     latest_name, historical_content = get_latest_history_content()
     if historical_content:
         file_content = historical_content
-        st.toast(f"📂 Carregado do histórico: {latest_name}")
+        if 'history_notified' not in st.session_state:
+            st.toast(f"📂 Carregado do armazenamento: {latest_name}")
+            st.session_state.history_notified = True
 
 if file_content:
     try:
