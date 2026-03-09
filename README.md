@@ -1,6 +1,6 @@
 # 📊 Dashboard de Investimentos Premium
 
-Este projeto é um dashboard interativo para acompanhamento de investimentos, otimizado para deploy em plataformas cloud (como Vercel) e com armazenamento persistente via navegador (LocalStorage).
+Este projeto é um dashboard interativo para acompanhamento de investimentos, otimizado para deploy no Streamlit Community Cloud e com armazenamento persistente via navegador (LocalStorage).
 
 ## ✨ Principais Funcionalidades
 
@@ -29,9 +29,9 @@ Este projeto é um dashboard interativo para acompanhamento de investimentos, ot
     streamlit run app.py
     ```
 
-## ☁️ Deploy na Vercel
+## ☁️ Deploy no Streamlit Cloud
 
-Este projeto já está configurado para deploy imediato na Vercel. Basta conectar seu repositório GitHub à plataforma Vercel e configurar o build command como padrão para Streamlit apps.
+Este projeto já está configurado para deploy imediato no **Streamlit Community Cloud**. Basta conectar seu repositório GitHub à plataforma e o sistema cuidará da instalação automática das dependências do `requirements.txt`.
 
 ## 📄 Estrutura do Projeto
 - `app.py`: Interface principal do dashboard.
