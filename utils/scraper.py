@@ -1,10 +1,7 @@
-import json
-import os
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
-
-CACHE_PATH = "data/scraped_cache.json"
+from utils.storage import get_data, save_data
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, hasattr(t, "innerHTML") ? t.innerHTML : t.textContent) Chrome/119.0.0.0 Safari/537.36'
@@ -14,9 +11,6 @@ def save_scraped_cache(data):
     """
     Saves only the 'site' and 'segmento' columns from FIIs and Stocks to a local cache.
     """
-    if not os.path.exists("data"):
-        os.makedirs("data")
-        
     cache = {
         'fiis': {},
         'acoes': {}
@@ -36,20 +30,17 @@ def save_scraped_cache(data):
             ticker = row['Ticker']
             cache['acoes'][ticker] = {col: row[col] for col in cols if col in row and pd.notna(row[col])}
             
-    with open(CACHE_PATH, 'w', encoding='utf-8') as f:
-        json.dump(cache, f, indent=4, ensure_ascii=False)
+    save_data('scraped_cache', cache)
 
 def merge_with_scraped_cache(data):
     """
     Merges existing data with cached scraper results if tickers match.
     """
-    if not os.path.exists(CACHE_PATH):
+    cache = get_data('scraped_cache')
+    if not cache:
         return data
         
     try:
-        with open(CACHE_PATH, 'r', encoding='utf-8') as f:
-            cache = json.load(f)
-            
         # Merge FIIs
         if 'fiis' in data and not data['fiis'].empty:
             for idx, row in data['fiis'].iterrows():

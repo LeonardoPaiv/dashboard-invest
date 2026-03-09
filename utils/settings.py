@@ -1,13 +1,8 @@
-import json
-import os
-
-SETTINGS_PATH = "data/data.json"
+from utils.storage import get_data, save_data
 
 def load_settings():
-    if not os.path.exists("data"):
-        os.makedirs("data")
-        
-    if not os.path.exists(SETTINGS_PATH):
+    settings = get_data("settings")
+    if not settings:
         return {
             "estrategia": "",
             "alvos": {
@@ -16,23 +11,7 @@ def load_settings():
                 "renda_fixa": 34.0
             }
         }
-    
-    with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except:
-            return {
-                "estrategia": "",
-                "alvos": {
-                    "fiis": 33.0,
-                    "acoes": 33.0,
-                    "renda_fixa": 34.0
-                }
-            }
+    return settings
 
 def save_settings(settings):
-    if not os.path.exists("data"):
-        os.makedirs("data")
-        
-    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=4, ensure_ascii=False)
+    save_data("settings", settings)

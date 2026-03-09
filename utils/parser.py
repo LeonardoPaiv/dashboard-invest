@@ -38,7 +38,7 @@ def parse_fii_section(df_raw, start_row):
     df['Posicao'] = df['Posicao'].apply(clean_currency)
     df['Alocacao'] = df['Alocacao'].apply(clean_percentage)
     df['Cotacao'] = df['Cotacao'].apply(clean_currency)
-    df['Quantidade'] = df['Quantidade'].apply(clean_currency)
+    df['Quantidade'] = df['Quantidade'].apply(clean_currency).astype(int)
     return df, end
 
 def parse_acoes_section(df_raw, start_row):
@@ -47,14 +47,14 @@ def parse_acoes_section(df_raw, start_row):
         end += 1
     
     # Mapeamento para Ações:
-    # Index 0: Ticker, Index 1: Posicao, Index 2: Alocacao, Index 4: Cotacao, Index 5: Quantidade
-    df = df_raw.iloc[start_row:end, [0, 1, 2, 4, 5]]
+    # Index 0: Ticker, Index 1: Posicao, Index 2: Alocacao, Index 6: Cotacao, Index 7: Quantidade
+    df = df_raw.iloc[start_row:end, [0, 1, 2, 5, 6]]
     df.columns = ['Ticker', 'Posicao', 'Alocacao', 'Cotacao', 'Quantidade']
     
     df['Posicao'] = df['Posicao'].apply(clean_currency)
     df['Alocacao'] = df['Alocacao'].apply(clean_percentage)
     df['Cotacao'] = df['Cotacao'].apply(clean_currency)
-    df['Quantidade'] = df['Quantidade'].apply(clean_currency)
+    df['Quantidade'] = df['Quantidade'].apply(clean_currency).astype(int)
     return df, end
 
 def parse_dividend_section(df_raw, start_row):

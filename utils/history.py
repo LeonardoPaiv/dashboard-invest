@@ -1,63 +1,72 @@
-import os
 import pandas as pd
 from datetime import datetime
+import base64
 from utils.parser import parse_investment_xlsx
-
-HISTORY_DIR = "data/history"
+from utils.storage import get_data, save_data
 
 def save_to_history(file_name, file_content):
-    if not os.path.exists(HISTORY_DIR):
-        os.makedirs(HISTORY_DIR)
+    # Get current history metadata
+    history = get_data("history")
+    if not history:
+        history = []
     
-    # Generate unique filename with timestamp
+    # Calculate current total for the history chart
+    try:
+        data = parse_investment_xlsx(file_content)
+        total = data['resumo'].get('total_investido', 0)
+    except:
+        total = 0
+        
+    # Add to history list
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_name = os.path.splitext(file_name)[0]
-    save_path = os.path.join(HISTORY_DIR, f"{timestamp}_{base_name}.xlsx")
+    date_str = datetime.now().strftime("%Y-%m-%d")
     
-    with open(save_path, "wb") as f:
-        f.write(file_content)
-    return save_path
+    history.append({
+        "timestamp": timestamp,
+        "date": date_str,
+        "filename": file_name,
+        "total": total
+    })
+    
+    # Limit history to avoid bloat in localStorage (e.g., last 50 points)
+    if len(history) > 50:
+        history = history[-50:]
+        
+    save_data("history", history)
+    
+    # Save the latest file content separately (encoded)
+    encoded_content = base64.b64encode(file_content).decode('utf-8')
+    save_data("latest_file", {"name": file_name, "content": encoded_content})
+    
+    return True
 
 def get_equity_history():
-    if not os.path.exists(HISTORY_DIR):
+    history = get_data("history")
+    if not history:
         return pd.DataFrame(columns=['Data', 'Total'])
     
     history_data = []
-    
-    # Sort files by timestamp in filename
-    files = sorted([f for f in os.listdir(HISTORY_DIR) if f.endswith(".xlsx")])
-    
-    for f in files:
+    for item in history:
         try:
-            # Extract date from filename: YYYYMMDD_HHMMSS_...
-            date_str = f.split('_')[0]
-            dt = datetime.strptime(date_str, "%Y%m%d")
-            
-            file_path = os.path.join(HISTORY_DIR, f)
-            with open(file_path, "rb") as file:
-                data = parse_investment_xlsx(file.read())
-                total = data['resumo'].get('total_investido', 0)
-                history_data.append({'Data': dt, 'Total': total})
-        except Exception as e:
-            print(f"Erro ao processar arquivo histórico {f}: {e}")
+            dt = datetime.strptime(item['date'], "%Y-%m-%d")
+            history_data.append({'Data': dt, 'Total': item['total']})
+        except:
+            continue
             
     df = pd.DataFrame(history_data)
     if not df.empty:
-        # Group by date and take the last one for each day to avoid duplicates in chart
         df = df.groupby('Data')['Total'].last().reset_index()
         df = df.sort_values('Data')
         
     return df
 
 def get_latest_history_content():
-    if not os.path.exists(HISTORY_DIR):
+    latest = get_data("latest_file")
+    if not latest or "content" not in latest:
         return None, None
     
-    files = sorted([f for f in os.listdir(HISTORY_DIR) if f.endswith(".xlsx")])
-    if not files:
+    try:
+        file_content = base64.b64decode(latest["content"])
+        return latest["name"], file_content
+    except:
         return None, None
-    
-    latest_file = files[-1]
-    file_path = os.path.join(HISTORY_DIR, latest_file)
-    with open(file_path, "rb") as f:
-        return latest_file, f.read()

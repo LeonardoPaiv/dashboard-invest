@@ -1,6 +1,6 @@
 streamlit
-google-generativeai
 python-dotenv
+streamlit-js-eval
 pandas
 plotly
 openpyxl

@@ -1,19 +1,26 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import google.generativeai as genai
 import os
+import time
 from dotenv import load_dotenv
 
 from utils.parser import parse_investment_xlsx, clean_currency
 from utils.history import save_to_history, get_equity_history, get_latest_history_content
 from utils.settings import load_settings, save_settings
-from utils.scraper import fetch_fii_data, fetch_stock_data, save_scraped_cache, merge_with_scraped_cache, fetch_rankings
+from utils.scraper import fetch_fii_data, fetch_stock_data, save_scraped_cache, merge_with_scraped_cache
 from utils.financial_plan import load_financial_plan, save_financial_plan, calculate_projection
+from utils.notes import load_snapshots, save_snapshot, delete_snapshot
+from utils.custom_lists import load_custom_lists, save_custom_lists, add_list, delete_list, add_item_to_list, remove_item_from_list, rename_list
+from utils.storage import get_data, save_data, initialize_state, export_all_data, import_all_data, save_to_browser
+from datetime import datetime, timedelta, timezone
 
 # Configurações iniciais
 load_dotenv()
 st.set_page_config(page_title="Investment Dashboard", layout="wide", page_icon="📊")
+
+# Inicializa o storage do navegador
+initialize_state()
 
 # --- Funções Auxiliares de Cálculo ---
 def get_live_position(df):
@@ -46,24 +53,87 @@ def get_live_position(df):
         
     return df
 # ------------------------------------
-# ------------------------------------
+def generate_rebalance_prompt(data, total_live, targets, current_alloc, aporte, estrategia):
+    """
+    Gera um prompt estruturado para ser usado em modelos de IA (LLMs) para análise de rebalanceamento.
+    """
+    prompt = f"### 🤖 Prompt de Rebalanceamento Estratégico\n\n"
+    prompt += "Atue como um analista de investimentos sênior. Baseado nos dados abaixo, sugira como devo alocar meu novo aporte para rebalancear minha carteira de acordo com meus alvos.\n\n"
+    
+    prompt += f"**💰 Valor para investir agora:** R$ {aporte:,.2f}\n"
+    prompt += f"**📈 Patrimônio Total Atual:** R$ {total_live:,.2f}\n"
+    prompt += f"**📜 Minha Estratégia:** {estrategia if estrategia else 'Não definida'}\n\n"
+    
+    prompt += "#### 🎯 Alvos vs Atual:\n"
+    prompt += f"- **Ações:** Alvo {targets['acoes']:.1f}% | Atual {current_alloc['acoes']:.1f}%\n"
+    prompt += f"- **FIIs:** Alvo {targets['fiis']:.1f}% | Atual {current_alloc['fiis']:.1f}%\n"
+    prompt += f"- **Renda Fixa:** Alvo {targets['rf']:.1f}% | Atual {current_alloc['rf']:.1f}%\n\n"
+    
+    prompt += "#### 📄 Minhas Posições Atuais:\n"
+    
+    if not data['acoes'].empty:
+        prompt += "**Ações:**\n"
+        for _, row in data['acoes'].iterrows():
+            prompt += f"- {row['Ticker']}: R$ {row['Posicao_Live']:,.2f} ({row.get('Segmento', 'N/A')})\n"
+    
+    if not data['fiis'].empty:
+        prompt += "\n**FIIs:**\n"
+        for _, row in data['fiis'].iterrows():
+            prompt += f"- {row['Ticker']}: R$ {row['Posicao_Live']:,.2f} ({row.get('Segmento', 'N/A')})\n"
+            
+    prompt += "\n**Instruções para a IA:**\n"
+    prompt += "1. Identifique qual classe de ativo está mais abaixo do alvo.\n"
+    prompt += "2. Dentro dessa classe, sugira onde alocar os R$ {aporte:,.2f} baseando-se em manter a diversificação por segmento.\n"
+    prompt += "3. Apresente o resultado final projetado da carteira após o aporte.\n"
+    
+    return prompt
 # ------------------------------------
 
-# Configuração do Gemini
-# ... (rest of Gemini config remains same)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
-else:
-    st.sidebar.warning("⚠️ Chave da API do Gemini não encontrada.")
+# --- Sidebar ---
 
 # Sidebar
 st.sidebar.title("Configurações")
-uploaded_file = st.sidebar.file_uploader("Upload da Carteira (.xlsx)", type=["xlsx"])
+
+# --- Seção de Dados ---
+with st.sidebar.expander("📁 Importar / Exportar Dados", expanded=False):
+    st.markdown("### Exportar")
+    if st.button("Gerar Arquivo de Backup"):
+        data_json = export_all_data()
+        st.download_button(
+            label="Download Backup (.json)",
+            data=data_json,
+            file_name=f"invest_backup_{datetime.now().strftime('%Y%m%d')}.json",
+            mime="application/json"
+        )
+    
+    st.markdown("---")
+    st.markdown("### Importar")
+    import_file = st.file_uploader("Upload de Backup (.json)", type=["json"])
+    if import_file:
+        if st.button("Confirmar Importação"):
+            if import_all_data(import_file.read().decode('utf-8')):
+                st.success("✅ Dados importados com sucesso! Recarregando...")
+                st.rerun()
+            else:
+                st.error("❌ Erro ao importar dados.")
 
 st.sidebar.markdown("---")
-query = st.sidebar.text_input("Dúvida sobre seus investimentos?", placeholder="Ex: Qual minha maior posição?")
+uploaded_file = st.sidebar.file_uploader("Upload da Carteira (.xlsx)", type=["xlsx"])
+
+# --- Modelo de Arquivo ---
+with st.sidebar.expander("📄 Modelo de Arquivo"):
+    st.markdown("""
+    O padrão do arquivo segue o **export de carteira da corretora XP Investimentos**. 
+    Se você usa outra plataforma, deve seguir o modelo para que o sistema consiga ler as informações corretamente.
+    """)
+    # Link manual para o CSV de exemplo (será criado a seguir)
+    with open("templates/modelo_carteira.csv", "r", encoding="utf-8") as f:
+        st.download_button(
+            label="Baixar Modelo CSV",
+            data=f.read(),
+            file_name="modelo_carteira_xp.csv",
+            mime="text/csv"
+        )
 
 # Processamento do Arquivo
 data = None
@@ -74,12 +144,12 @@ if uploaded_file:
     if 'last_uploaded' not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
         save_to_history(uploaded_file.name, file_content)
         st.session_state.last_uploaded = uploaded_file.name
-    st.sidebar.success("✅ Arquivo carregado e salvo!")
+    st.toast("✅ Arquivo carregado e salvo!")
 else:
     latest_name, historical_content = get_latest_history_content()
     if historical_content:
         file_content = historical_content
-        st.sidebar.info(f"📂 Carregado do histórico: {latest_name}")
+        st.toast(f"📂 Carregado do histórico: {latest_name}")
 
 if file_content:
     try:
@@ -89,50 +159,15 @@ if file_content:
             st.session_state.portfolio_data = merge_with_scraped_cache(pd_data)
         data = st.session_state.portfolio_data
     except Exception as e:
-        st.sidebar.error(f"Erro ao processar arquivo: {str(e)}")
+        st.toast(f"❌ Erro ao processar arquivo: {str(e)}")
 
 # Botão de Scaper na Sidebar
 if data:
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔄 Dados em Tempo Real")
     if st.sidebar.button("Atualizar via Investidor10"):
-        progress_bar = st.sidebar.progress(0)
-        status_text = st.sidebar.empty()
-        
-        total_items = len(data['fiis']) + len(data['acoes'])
-        processed = 0
-        
-        if not data['fiis'].empty:
-            for idx, row in data['fiis'].iterrows():
-                ticker = row['Ticker']
-                status_text.text(f"Scraping FII: {ticker}")
-                scraped = fetch_fii_data(ticker)
-                if scraped:
-                    data['fiis'].at[idx, 'DY_Site'] = scraped['DY']
-                    data['fiis'].at[idx, 'P_VP_Site'] = scraped['P/VP']
-                    data['fiis'].at[idx, 'Cotacao_Site'] = scraped['Cotação']
-                    data['fiis'].at[idx, 'Segmento'] = scraped['Segmento']
-                processed += 1
-                progress_bar.progress(processed / total_items)
-        
-        if not data['acoes'].empty:
-            for idx, row in data['acoes'].iterrows():
-                ticker = row['Ticker']
-                status_text.text(f"Scraping Ação: {ticker}")
-                scraped = fetch_stock_data(ticker)
-                if scraped:
-                    data['acoes'].at[idx, 'DY_Site'] = scraped['DY']
-                    data['acoes'].at[idx, 'PL_Site'] = scraped['P/L']
-                    data['acoes'].at[idx, 'Variacao_Site'] = scraped['Variação']
-                    data['acoes'].at[idx, 'Cotacao_Site'] = scraped['Cotação']
-                    data['acoes'].at[idx, 'Segmento'] = scraped['Segmento']
-                processed += 1
-                progress_bar.progress(processed / total_items)
-        
-        st.session_state.portfolio_data = data
-        save_scraped_cache(data)  # Persiste os novos dados encontrados
-        status_text.text("✅ Atualização concluída!")
-        st.sidebar.success("Dados atualizados via Web Scraper!")
+        st.session_state.trigger_manual_update = True
+        st.rerun()
 
 if data:
     # APLICAR CÁLCULOS LIVE EM TODOS OS DATAFRAMES
@@ -146,24 +181,100 @@ if data:
                   data['acoes']['Posicao_Live'].sum() + 
                   data['tesouro']['Posicao_Live'].sum() + 
                   data['renda_fixa']['Posicao_Live'].sum())
-    
     resumo = data['resumo']
+
+# --- Funções de Controle de Horário e Atualização ---
+def is_in_update_window():
+    """Verifica se está no horário de atualização (10h às 17h Brasília)"""
+    tz_brt = timezone(timedelta(hours=-3))
+    now_brt = datetime.now(tz_brt)
+    return 10 <= now_brt.hour < 17
+
+# ------------------------------------
+# ------------------------------------
+# ------------------------------------
+
+# --- Lógica de Auto-Update (5 minutos) ---
+UPDATE_INTERVAL = 5 # minutos
+if 'last_update' not in st.session_state:
+    st.session_state.last_update = datetime.now() - timedelta(minutes=UPDATE_INTERVAL + 1) # Forçar primeira atualização
+
+if 'trigger_manual_update' not in st.session_state:
+    st.session_state.trigger_manual_update = False
+
+if 'show_update_toast' not in st.session_state:
+    st.session_state.show_update_toast = False
+
+next_update_time = st.session_state.last_update + timedelta(minutes=UPDATE_INTERVAL)
+is_updating = False
+
+def perform_global_update():
+    global data
+    # Atualizar Portfolio (Investidor 10)
+    if data:
+        total_items = len(data['fiis']) + len(data['acoes'])
+        if not data['fiis'].empty:
+            for idx, row in data['fiis'].iterrows():
+                scraped = fetch_fii_data(row['Ticker'])
+                if scraped:
+                    data['fiis'].at[idx, 'DY_Site'] = scraped['DY']
+                    data['fiis'].at[idx, 'P_VP_Site'] = scraped['P/VP']
+                    data['fiis'].at[idx, 'Cotacao_Site'] = scraped['Cotação']
+                    data['fiis'].at[idx, 'Segmento'] = scraped['Segmento']
+        
+        if not data['acoes'].empty:
+            for idx, row in data['acoes'].iterrows():
+                scraped = fetch_stock_data(row['Ticker'])
+                if scraped:
+                    data['acoes'].at[idx, 'DY_Site'] = scraped['DY']
+                    data['acoes'].at[idx, 'PL_Site'] = scraped['P/L']
+                    data['acoes'].at[idx, 'Variacao_Site'] = scraped['Variação']
+                    data['acoes'].at[idx, 'Cotacao_Site'] = scraped['Cotação']
+                    data['acoes'].at[idx, 'Segmento'] = scraped['Segmento']
+        
+        st.session_state.portfolio_data = data
+        save_scraped_cache(data)
+
+    # Atualizar Listas Customizadas
+    custom_lists_to_update = load_custom_lists()
+    for l_data in custom_lists_to_update:
+        id_list = l_data['id']
+        updated_items = []
+        for item in l_data['items']:
+            ticker = item['ticker']
+            scraped = fetch_stock_data(ticker) if item['type'] == "Ação" else fetch_fii_data(ticker)
+            if scraped:
+                if item['type'] == "Ação":
+                    updated_items.append({'Ticker': ticker, 'Cotação': scraped.get('Cotação'), 'DY': scraped.get('DY', 'N/A'), 'P/L': scraped.get('P/L', 'N/A')})
+                else:
+                    updated_items.append({'Ticker': ticker, 'Cotação': scraped.get('Cotação'), 'DY': scraped.get('DY', 'N/A'), 'P/VP': scraped.get('P/VP', 'N/A')})
+            else:
+                updated_items.append({'Ticker': ticker, 'Cotação': 'Erro', 'DY': 'N/A'})
+        st.session_state[f"list_cache_{id_list}"] = updated_items
     
-# Lógica do Gemini com contexto dos dados
-if query and data:
-    if GEMINI_API_KEY:
-        with st.spinner("Consultando Gemini..."):
-            try:
-                contexto = f"O usuário possui R$ {total_live:,.2f} investidos (valor de mercado atualizado). "
-                contexto += f"FIIs: {len(data['fiis'])} ativos. Ações: {len(data['acoes'])} ativos. "
-                prompt = f"Contexto: {contexto}\n\nPergunta: {query}"
-                response = model.generate_content(prompt)
-                st.sidebar.info(f"**Insight do Gemini:**\n\n{response.text}")
-            except Exception as e:
-                st.sidebar.error(f"Erro ao consultar Gemini: {str(e)}")
+    st.session_state.last_update = datetime.now()
 
 # Conteúdo Principal
-st.title("📊 Painel de Investimentos")
+t_col1, t_col2 = st.columns([6, 1])
+with t_col1:
+    st.title("📊 Painel de Investimentos")
+with t_col2:
+    st.write("") # alinhamento
+    st.write("") # alinhamento
+    status_placeholder = st.empty()
+    last_up_str = st.session_state.last_update.strftime("%H:%M")
+    if is_in_update_window():
+        next_up_str = (st.session_state.last_update + timedelta(minutes=UPDATE_INTERVAL)).strftime("%H:%M")
+        status_help = f"Última atualização: {last_up_str}\nPróxima automática: {next_up_str}"
+    else:
+        status_help = f"Última atualização: {last_up_str}\nAuto-update pausado (horário permitido: 10h-17h Brasília)"
+    status_placeholder.markdown(f"### ℹ️", help=status_help)
+
+if st.session_state.show_update_toast:
+    st.toast("✅ Dados atualizados com sucesso!", icon="✨")
+    st.session_state.show_update_toast = False
+
+# (Auto-refresh trigger moved to bottom)
 
 # Navegação Centralizada
 col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 1])
@@ -204,9 +315,9 @@ if data:
                     fig_evo.update_layout(showlegend=False, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_evo, use_container_width=True)
                 else:
-                    st.info("💡 Faça o upload de novos arquivos para alimentar o histórico.")
+                    st.toast("💡 Faça o upload de novos arquivos para alimentar o histórico.", icon="ℹ️")
             else:
-                st.info("💡 Histórico vazio. Faça upload para começar.")
+                st.toast("💡 Histórico vazio. Faça upload para começar.", icon="ℹ️")
 
         # --- QUADRANTE 2: Gráfico de Ativos com Filtros Dinâmicos ---
         with row1_col2:
@@ -256,35 +367,91 @@ if data:
                 fig_assets.update_layout(margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig_assets, use_container_width=True)
             else:
-                st.warning("Nenhum dado encontrado para este filtro.")
+                st.toast("⚠️ Nenhum dado encontrado para este filtro.", icon="⚠️")
 
-        # --- QUADRANTE 3: Rankings de Ativos (Webscraping Investidor 10) ---
+        # --- QUADRANTE 3: Listas Personalizadas (CRUD + Webscraping) ---
         with row2_col1:
-            st.subheader("🥇 Rankings do Mercado")
-            if st.button("🔄 Atualizar Rankings (Investidor 10)", use_container_width=True):
-                with st.spinner("Conectando ao Investidor 10..."):
-                    rk_data = fetch_rankings()
-                    if rk_data:
-                        st.session_state.rk_cache = rk_data
-                        st.success("Rankings atualizados!")
-                    else:
-                        st.error("Falha ao buscar rankings.")
+            st.subheader("🥇 Listas Personalizadas")
             
-            if 'rk_cache' in st.session_state:
-                rk = st.session_state.rk_cache
-                rtab1, rtab2, rtab3 = st.tabs(["Div. Yield", "Val. Mercado", "Receita"])
-                
-                with rtab1:
-                    df_rk1 = pd.DataFrame(rk.get("Maiores Dividend Yield", []))
-                    if not df_rk1.empty: st.dataframe(df_rk1, hide_index=True, use_container_width=True)
-                with rtab2:
-                    df_rk2 = pd.DataFrame(rk.get("Maiores Valor de Mercado", []))
-                    if not df_rk2.empty: st.dataframe(df_rk2, hide_index=True, use_container_width=True)
-                with rtab3:
-                    df_rk3 = pd.DataFrame(rk.get("Maiores Receitas", []))
-                    if not df_rk3.empty: st.dataframe(df_rk3, hide_index=True, use_container_width=True)
-            else:
-                st.info("Clique no botão acima para carregar o scraping do Investidor 10.")
+            # Carregar listas
+            custom_lists = load_custom_lists()
+            if 'list_offset' not in st.session_state:
+                st.session_state.list_offset = 0
+            visible_lists = custom_lists[st.session_state.list_offset : st.session_state.list_offset + 3]
+
+            # Controles em uma linha: Seta Esq, Nova, Att Tudo, Seta Dir
+            ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1, 2, 2, 1])
+            with ctrl_c1:
+                if st.button("⬅️", disabled=st.session_state.list_offset == 0, key="prev_list", use_container_width=True):
+                    st.session_state.list_offset = max(0, st.session_state.list_offset - 1)
+                    st.rerun()
+            with ctrl_c2:
+                if st.button("➕ Nova Lista", use_container_width=True):
+                    add_list(f"Nova Lista {len(custom_lists) + 1}")
+                    st.rerun()
+            with ctrl_c3:
+                if st.button("🔄 Atualizar Tudo", use_container_width=True, type="primary"):
+                    st.session_state.trigger_manual_update = True
+                    st.rerun()
+            with ctrl_c4:
+                if st.button("➡️", disabled=st.session_state.list_offset + 3 >= len(custom_lists), key="next_list", use_container_width=True):
+                    st.session_state.list_offset = min(len(custom_lists) - 3, st.session_state.list_offset + 1)
+                    st.rerun()
+            
+            st.markdown("---")
+
+            # Renderizar Listas
+            list_cols = st.columns(len(visible_lists)) if visible_lists else [st.empty()]
+            
+            for i, l_data in enumerate(visible_lists):
+                id_list = l_data['id']
+                with list_cols[i]:
+                    # Header da Lista: Nome + Ações no menu de 3 pontos
+                    t_col, m_col = st.columns([4, 1])
+                    with t_col:
+                        new_name = st.text_input("Nome", value=l_data['name'], key=f"name_{id_list}", label_visibility="collapsed")
+                        if new_name != l_data['name']:
+                            rename_list(id_list, new_name)
+                            st.rerun()
+                    with m_col:
+                        with st.popover("⋮"):
+                            st.markdown("**➕ Adicionar**")
+                            new_ticker = st.text_input("Ticker", key=f"ticker_add_{id_list}").upper()
+                            new_type = st.selectbox("Tipo", ["Ação", "FII"], key=f"type_add_{id_list}")
+                            if st.button("Add", key=f"btn_add_{id_list}", use_container_width=True):
+                                if new_ticker:
+                                    add_item_to_list(id_list, new_ticker, new_type)
+                                    st.session_state[f"list_cache_{id_list}"] = []
+                                    st.rerun()
+                            
+                            st.divider()
+                            st.markdown("**🗑️ Remover**")
+                            if l_data['items']:
+                                ticker_to_rem = st.selectbox("Ticker", [i['ticker'] for i in l_data['items']], key=f"rem_sel_{id_list}")
+                                if st.button("Rem", key=f"btn_rem_{id_list}", use_container_width=True):
+                                    remove_item_from_list(id_list, ticker_to_rem)
+                                    st.session_state[f"list_cache_{id_list}"] = []
+                                    st.rerun()
+                            else:
+                                st.caption("Vazio")
+                                
+                            st.divider()
+                            if st.button("❌ Excluir Lista", key=f"del_list_{id_list}", type="primary", use_container_width=True):
+                                delete_list(id_list)
+                                st.rerun()
+
+                    # Tabela de Dados
+                    if f"list_cache_{id_list}" not in st.session_state:
+                        st.session_state[f"list_cache_{id_list}"] = []
+                    
+                    cached_data = st.session_state[f"list_cache_{id_list}"]
+                    if cached_data:
+                        st.dataframe(pd.DataFrame(cached_data), hide_index=True, use_container_width=True)
+                    else:
+                        if l_data['items']:
+                            st.dataframe(pd.DataFrame(l_data['items']), hide_index=True, use_container_width=True)
+                        else:
+                            st.caption("Lista vazia.")
 
         # --- QUADRANTE 4: Lista Detalhada Filtrada ---
         with row2_col2:
@@ -306,113 +473,95 @@ if data:
         
         with etab1:
             settings = load_settings()
-            
-            # Necessário calcular antes para o Comparativo nas colunas combinadas
+            # Necessário calcular para o prompt e snapshot
             at_fiis = (data['fiis']['Posicao_Live'].sum() / total_live) * 100 if total_live > 0 else 0
             at_acoes = (data['acoes']['Posicao_Live'].sum() / total_live) * 100 if total_live > 0 else 0
             at_rf = ((data['renda_fixa']['Posicao_Live'].sum() + data['tesouro']['Posicao_Live'].sum()) / total_live) * 100 if total_live > 0 else 0
-            
-            c1, c2, c3, c4 = st.columns([1.5, 1, 1.5, 1.2])
-            
-            with c1:
-                st.markdown("##### 📜 Política de Investimentos")
-                nova_est = st.text_area("Sua estratégia", value=settings.get("estrategia", ""), height=255, label_visibility="collapsed")
-                
-            with c2:
-                st.markdown("##### 🎯 Alvos (%)")
-                alvos = settings.get("alvos", {"fiis": 33.3, "acoes": 33.3, "renda_fixa": 33.4})
-                a_fiis = st.number_input("FIIs", 0.0, 100.0, float(alvos.get("fiis")))
-                a_acoes = st.number_input("Ações", 0.0, 100.0, float(alvos.get("acoes")))
-                a_rf = st.number_input("Renda Fixa", 0.0, 100.0, float(alvos.get("renda_fixa")))
-                st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-                if st.button("💾 Salvar Alvos", use_container_width=True):
-                    save_settings({"estrategia": nova_est, "alvos": {"fiis": a_fiis, "acoes": a_acoes, "renda_fixa": a_rf}})
-                    st.success("Salvo!")
-            
-            with c3:
-                st.markdown("##### ⚖️ Comparativo Atual/Alvo")
-                df_comp = pd.DataFrame({
-                    'Categoria': ['FIIs', 'Ações', 'R. Fixa'],
-                    'Atual (%)': [at_fiis, at_acoes, at_rf],
-                    'Alvo (%)': [a_fiis, a_acoes, a_rf]
-                })
-                fig_comp = px.bar(df_comp, y='Categoria', x=['Atual (%)', 'Alvo (%)'], barmode='group', orientation='h')
-                fig_comp.update_layout(margin=dict(l=0, r=0, t=0, b=0), height=230, legend={"yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1})
-                st.plotly_chart(fig_comp, use_container_width=True)
-                
-            with c4:
-                st.markdown("##### 💰 Aporte (IA)")
-                str_apporto = "Valor Planejado (R$)"
-                aporte_valor = st.number_input(str_apporto, min_value=0.0, value=1000.0, step=100.0)
-                st.markdown("<div style='min-height: 120px;'></div>", unsafe_allow_html=True)
-                btn_sugestao = st.button("💡 Gerar Sugestão Rápida", use_container_width=True, type="primary")
 
-            st.markdown("---")
-            st.subheader("🤖 Consulta e Sugestões do Assistente")
+            # --- ÁREA 1: Configuração & Notas ---
+            c_config, c_notes = st.columns([1, 1.2]) # Re-alocando espaço
             
-            # Inicializa histórico de chat
-            if "strategy_chat" not in st.session_state:
-                st.session_state.strategy_chat = []
+            with c_config:
+                st.markdown("##### 🎯 Configurações de Alvos")
+                alvos = settings.get("alvos", {"fiis": 33.3, "acoes": 33.3, "renda_fixa": 33.4})
                 
-            # Mostra o histórico
-            for msg in st.session_state.strategy_chat:
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
-            
-            user_input = st.chat_input("Ou digite uma dúvida / instrução livre sobre a sua estratégia...")
-            
-            final_user_input = None
-            if btn_sugestao:
-                final_user_input = "Analise minha carteira atual e o meu valor de aporte disponível. Me forneça uma sugestão estruturada (em tópicos ou tabela resumida) de onde eu devo aportar para equilibrar meus investimentos com base nos meus alvos definidos."
-            elif user_input:
-                final_user_input = user_input
-            
-            if final_user_input:
-                st.session_state.strategy_chat.append({"role": "user", "content": final_user_input})
-                with st.chat_message("user"):
-                    st.markdown(final_user_input)
+                # Layout compacto para inputs
+                cc1, cc2, cc3 = st.columns(3)
+                a_fiis = cc1.number_input("FIIs (%)", 0.0, 100.0, float(alvos.get("fiis")), key="target_fiis")
+                a_acoes = cc2.number_input("Ações (%)", 0.0, 100.0, float(alvos.get("acoes")), key="target_acoes")
+                a_rf = cc3.number_input("R. Fixa (%)", 0.0, 100.0, float(alvos.get("renda_fixa")), key="target_rf")
                 
-                with st.chat_message("assistant"):
-                    with st.spinner("Analisando sua carteira e estratégia..."):
-                        if GEMINI_API_KEY:
-                            try:
-                                str_fiis = data['fiis'][['Ticker', 'Posicao_Live']].to_string(index=False) if not data['fiis'].empty else "Nenhum FII"
-                                str_acoes = data['acoes'][['Ticker', 'Posicao_Live']].to_string(index=False) if not data['acoes'].empty else "Nenhuma Ação"
-                                
-                                resumo_carteira = (
-                                    f"- Total Investido: R$ {total_live:,.2f}\n"
-                                    f"- FIIs: {at_fiis:.1f}% (Alvo: {a_fiis}%)\nPosições Atuais:\n{str_fiis}\n\n"
-                                    f"- Ações: {at_acoes:.1f}% (Alvo: {a_acoes}%)\nPosições Atuais:\n{str_acoes}\n\n"
-                                    f"- Renda Fixa: {at_rf:.1f}% (Alvo: {a_rf}%)\n"
-                                )
-                                
-                                prompt_completo = (
-                                    f"Você é um consultor financeiro especialista.\n"
-                                    f"O usuário enviou a seguinte mensagem/solicitação: '{final_user_input}'\n\n"
-                                    f"--- CONTEXTO ---\n"
-                                    f"Política/estratégia atual: {nova_est}\n"
-                                    f"Valor p/ Aporte: R$ {aporte_valor:,.2f}\n\n"
-                                    f"Carteira atual (% e posições):\n{resumo_carteira}\n\n"
-                                    f"--- INSTRUÇÕES ---\n"
-                                    f"1. Responda diretamente à mensagem do usuário.\n"
-                                    f"2. Se ele pedir uma sugestão de aporte, recomende uma distruibuição clara do valor (R$ {aporte_valor:,.2f}) com foco no rebalanceamento dos Alvos definidos, informando os ativos pontualmente e usando tabelas (Markdown) ou uma lista de tópicos curtos para que fique BEM visual e fácil de ler na interface.\n"
-                                    f"3. Respeite sempre a 'Política/estratégia' do usuário.\n"
-                                    f"4. Siga um tom consultivo, prático e amigável. Seja conciso e evite grandes parágrafos de introdução/conclusão.\n"
-                                )
-                                
-                                history_context = "Histórico da conversa:\n"
-                                for m in st.session_state.strategy_chat[-7:-1]:
-                                    history_context += f"{'Usuário' if m['role'] == 'user' else 'Consultor'}: {m['content']}\n"
-                                
-                                final_prompt = f"{history_context}\n{prompt_completo}"
-                                
-                                response = model.generate_content(final_prompt)
-                                st.markdown(response.text)
-                                st.session_state.strategy_chat.append({"role": "assistant", "content": response.text})
-                            except Exception as e:
-                                st.error(f"Erro ao consultar Gemini: {str(e)}")
-                        else:
-                            st.warning("⚠️ Chave da API do Gemini não está configurada (.env).")
+                st.markdown("##### 💰 Aporte Atual")
+                aporte_valor = st.number_input("Valor para Investir (R$)", min_value=0.0, value=1000.0, step=100.0, key="aporte_input_strat")
+                
+                st.markdown("##### 📜 Política de Investimentos")
+                nova_est = st.text_area("Sua estratégia", value=settings.get("estrategia", ""), height=100, label_visibility="collapsed", placeholder="Ex: Foco em dividendos e crescimento de longo prazo.")
+                
+                if st.button("💾 Salvar Configurações", use_container_width=True):
+                    save_settings({"estrategia": nova_est, "alvos": {"fiis": a_fiis, "acoes": a_acoes, "renda_fixa": a_rf}})
+                    st.toast("✅ Configurações salvas!")
+                
+                st.markdown("---")
+                if st.button("📸 Capturar Snapshot e Criar Nota", use_container_width=True, type="primary"):
+                    new_snap = {
+                        "portfolio_total": total_live,
+                        "aporte": aporte_valor,
+                        "targets": {"fiis": a_fiis, "acoes": a_acoes, "rf": a_rf},
+                        "current": {"fiis": at_fiis, "acoes": at_acoes, "rf": at_rf},
+                        "result": "" 
+                    }
+                    save_snapshot(new_snap)
+                    st.toast("Snapshot capturado!", icon="✅")
+                
+                st.markdown("---")
+                st.markdown("##### 🤖 Gerador de Prompt (Deep Research)")
+                full_prompt = generate_rebalance_prompt(
+                    data, 
+                    total_live, 
+                    {"fiis": a_fiis, "acoes": a_acoes, "rf": a_rf},
+                    {"fiis": at_fiis, "acoes": at_acoes, "rf": at_rf},
+                    aporte_valor, 
+                    nova_est
+                )
+                with st.expander("Visualizar Prompt para Copiar"):
+                    st.code(full_prompt, language="markdown")
+                    st.caption("💡 Copie o texto acima e cole em uma ferramenta de IA para obter uma análise detalhada.")
+
+            with c_notes:
+                st.markdown("##### 📓 Notas e Resultados de Research")
+                snapshots = load_snapshots()
+                
+                if not snapshots:
+                    st.caption("Ainda não há snapshots salvos.")
+                
+                for idx, snap in enumerate(snapshots):
+                    with st.expander(f"📍 {snap.get('date')} (R$ {snap.get('aporte'):,.0f})"):
+                        col_info, col_res = st.columns([1, 1.5])
+                        
+                        with col_info:
+                            st.write(f"**Patrimônio:** R$ {snap.get('portfolio_total'):,.0f}")
+                            st.write(f"**Alvos:** F:{snap['targets']['fiis']}% | A:{snap['targets']['acoes']}%")
+                            if st.button(f"🗑️", key=f"del_{snap['id']}"):
+                                delete_snapshot(snap['id'])
+                                st.rerun()
+                        
+                        with col_res:
+                            res_key = f"res_{snap['id']}"
+                            current_res = snap.get('result', '')
+                            new_res = st.text_area("Research Result:", value=current_res, height=150, key=res_key, label_visibility="collapsed")
+                            
+                            if new_res != current_res:
+                                all_snaps = load_snapshots()
+                                for s in all_snaps:
+                                    if s['id'] == snap['id']:
+                                        s['result'] = new_res
+                                        break
+                                save_data("snapshots", all_snaps)
+                                st.rerun()
+                            
+                            if current_res:
+                                st.markdown("---")
+                                st.markdown(current_res)
 
         with etab2:
             st.subheader("Projeção de Longo Prazo")
@@ -422,9 +571,9 @@ if data:
             plan = st.session_state.plan_data
             cp1, cp2 = st.columns([3, 1])
             with cp2:
-                r_mensal = st.number_input("Rentabilidade Mensal (%)", 0.0, 5.0, float(plan.get("expected_return_monthly", 0.8)), step=0.1)
-                p_ini = st.number_input("Patrimônio Inicial (R$)", 0.0, None, float(total_live if plan.get("initial_equity", 0) == 0 else plan.get("initial_equity")))
-                a_proj = st.slider("Anos", 1, 40, int(plan.get("projection_years", 10)))
+                r_mensal = st.number_input("Rentabilidade Mensal (%)", 0.0, 5.0, float(plan.get("expected_return_monthly", 0.8)), step=0.1, key="plan_return")
+                p_ini = st.number_input("Patrimônio Inicial (R$)", 0.0, None, float(total_live if plan.get("initial_equity", 0) == 0 else plan.get("initial_equity")), key="plan_initial")
+                a_proj = st.slider("Anos", 1, 40, int(plan.get("projection_years", 10)), key="plan_years")
                 
                 if (r_mensal != plan.get("expected_return_monthly") or p_ini != plan.get("initial_equity") or a_proj != plan.get("projection_years")):
                     plan.update({"expected_return_monthly": r_mensal, "initial_equity": p_ini, "projection_years": a_proj})
@@ -447,7 +596,32 @@ if data:
                 st.dataframe(data['dividendos'], use_container_width=True)
                 st.metric("Total Acumulado", f"R$ {data['dividendos']['Valor'].sum():,.2f}")
             else:
-                st.info("Nenhum registro de dividendos encontrado.")
+                st.caption("Nenhum registro de dividendos encontrado.")
 
 else:
     st.info("👋 Por favor, faça o upload do seu arquivo de ativos (.xlsx) para começar a análise.")
+
+# --- Execução de Atualização em Segundo Plano (No final para não bloquear o render) ---
+if (is_in_update_window() and datetime.now() >= next_update_time) or st.session_state.trigger_manual_update:
+    is_updating = True
+    with status_placeholder:
+        with st.spinner("Atualizando..."):
+            perform_global_update()
+            if st.session_state.trigger_manual_update:
+                st.session_state.show_update_toast = True
+    st.session_state.trigger_manual_update = False
+    is_updating = False
+    st.rerun()
+
+# Gatilho de auto-update suave para a próxima atualização automática
+@st.fragment(run_every=60) # Checar a cada minuto se é hora de atualizar
+def auto_refresh_trigger():
+    if is_in_update_window() and datetime.now() >= next_update_time:
+        st.rerun()
+
+auto_refresh_trigger()
+
+# --- Sincronização Final com LocalStorage ---
+if st.session_state.get('sync_required', False):
+    save_to_browser(st.session_state.app_data)
+    st.session_state.sync_required = False

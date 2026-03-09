@@ -1,8 +1,5 @@
-import json
-import os
 import pandas as pd
-
-PLAN_PATH = "data/financial_plan.json"
+from utils.storage import get_data, save_data
 
 def get_default_plan():
     months = [
@@ -21,27 +18,18 @@ def get_default_plan():
     return {
         "monthly_data": data,
         "expected_return_monthly": 0.8,
-        "initial_equity": 0.0
+        "initial_equity": 0.0,
+        "projection_years": 10
     }
 
 def load_financial_plan():
-    if not os.path.exists("data"):
-        os.makedirs("data")
-        
-    if not os.path.exists(PLAN_PATH):
+    plan = get_data("financial_plan")
+    if not plan:
         return get_default_plan()
-    
-    with open(PLAN_PATH, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except:
-            return get_default_plan()
+    return plan
 
 def save_financial_plan(plan_data):
-    if not os.path.exists("data"):
-        os.makedirs("data")
-    with open(PLAN_PATH, "w", encoding="utf-8") as f:
-        json.dump(plan_data, f, indent=4, ensure_ascii=False)
+    save_data("financial_plan", plan_data)
 
 def calculate_projection(plan_data, current_equity=0, years=1):
     monthly_df = pd.DataFrame(plan_data["monthly_data"])
