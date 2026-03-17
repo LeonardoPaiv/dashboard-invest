@@ -1,5 +1,5 @@
 import React from 'react';
-import { Upload, Download, RefreshCw, LayoutDashboard, Target, History } from 'lucide-react';
+import { Upload, Download, RefreshCw, LayoutDashboard, Target, History, Landmark } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { parseInvestmentExcel } from '../utils/parser';
 
@@ -89,6 +89,12 @@ export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setAct
           label="Estratégia" 
           active={activeTab === 'strategy'} 
           onClick={() => setActiveTab('strategy')} 
+        />
+        <NavItem 
+          icon={<Landmark size={20}/>} 
+          label="Projeção" 
+          active={activeTab === 'projection'} 
+          onClick={() => setActiveTab('projection')} 
         />
         <NavItem 
           icon={<History size={20}/>} 
