@@ -70,11 +70,8 @@ export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setAct
 
   return (
     <div className="w-64 h-screen bg-card border-r border-white/10 flex flex-col p-6 sticky top-0">
-      <div className="flex items-center gap-3 mb-10">
-        <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center">
-          <RefreshCw className="text-primary w-6 h-6" />
-        </div>
-        <h1 className="font-bold text-xl tracking-tight">InvestDash</h1>
+      <div className="flex items-center gap-3 mb-0">
+        <img src="src/assets/logo.png" alt="Logo" />
       </div>
 
       <nav className="flex-1 space-y-2">
