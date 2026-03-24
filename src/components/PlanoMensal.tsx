@@ -260,7 +260,7 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
               </h2>
               
               {/* Chart Area - Fixed at Top */}
-              <div className="h-[40%] w-full flex items-center gap-4 mb-4 shrink-0">
+              <div className="h-[40%] w-full flex items-center gap-4 mb-4 shrink-0 overflow-hidden">
                 <div className="flex-1 h-full min-w-0">
                   {chartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
@@ -269,8 +269,8 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
                           data={chartData}
                           cx="50%"
                           cy="50%"
-                          innerRadius={60}
-                          outerRadius={80}
+                          innerRadius={65}
+                          outerRadius={90}
                           paddingAngle={5}
                           dataKey="value"
                           stroke="none"
@@ -295,10 +295,10 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
                 </div>
 
                 {/* Lateral Legend */}
-                <div className="flex flex-col gap-2 max-h-full overflow-y-auto no-scrollbar py-2 w-28 border-l border-white/5 pl-4 shrink-0">
+                <div className="flex flex-col gap-2 max-h-full overflow-y-auto no-scrollbar py-2 w-32 border-l border-white/5 pl-4 shrink-0">
                   {chartData.map((item, index) => (
                     <div key={item.name} className="flex items-center gap-2 group/legend cursor-default shrink-0">
-                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                      <div className="w-2 h-2 rounded-full shrink-0 shadow-lg shadow-white/5" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
                       <span className="text-[9px] font-black uppercase tracking-wider text-white/40 group-hover/legend:text-white transition-colors truncate">
                         {item.name}
                       </span>
@@ -308,7 +308,7 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
               </div>
 
               {/* Table Area - Scrollable at Bottom */}
-              <div className="flex-1 flex flex-col min-h-0 border-t border-white/10 pt-6">
+              <div className="flex-1 flex flex-col min-h-0 border-t border-white/10 pt-6 overflow-hidden">
                 <div className="flex items-center justify-between mb-4 shrink-0">
                   <div className="flex flex-col">
                     <span className="text-[10px] font-black uppercase tracking-widest text-white/40">Gasto Total</span>
@@ -321,11 +321,11 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
                      <select 
                       value={filterCategory}
                       onChange={(e) => setFilterCategory(e.target.value)}
-                      className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-widest focus:outline-none focus:border-primary/50 transition-all cursor-pointer appearance-none pr-8"
+                      className="bg-white/5 border border-white/12 rounded-xl px-3 py-1.5 text-[12px] font-black uppercase tracking-widest focus:outline-none focus:border-primary/50 transition-all cursor-pointer appearance-none pr-8 w-48"
                      >
-                       <option value="Todos">Todas Categorias</option>
+                       <option className='text-[12px] font-black uppercase tracking-widest' value="Todos">Todas Categorias</option>
                        {monthlyPlan.categories.map(cat => (
-                         <option key={cat} value={cat}>{cat}</option>
+                         <option className='text-[12px] font-black uppercase tracking-widest' key={cat} value={cat}>{cat}</option>
                        ))}
                      </select>
                      <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
@@ -335,11 +335,11 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-1">
                   <table className="w-full text-left border-separate border-spacing-y-2">
                     <thead className="sticky top-0 bg-[#141415] z-10">
-                      <tr className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">
+                      <tr className="text-[12px] font-black uppercase tracking-[0.2em] text-white/20">
                         <th className="pb-2">Descrição</th>
                         <th className="pb-2">Valor</th>
                         <th className="pb-2 text-right">% Gasto</th>
-                        <th className="pb-2 text-right">% Rec.</th>
+                        <th className="pb-2 text-right pr-4">% Rec.</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -354,17 +354,17 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
                               <td className="py-2 pr-2">
                                 <div className="flex flex-col">
                                   <span className="text-xs font-bold text-white/80 group-hover/row:text-white transition-colors">{item.name}</span>
-                                  <span className="text-[9px] text-white/20 font-black uppercase">{item.category}</span>
+                                  <span className="text-[12px] text-white/20 font-black uppercase">{item.category}</span>
                                 </div>
                               </td>
                               <td className="py-2 text-xs font-black text-rose-400">
                                 {item.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' , minimumFractionDigits: 0, maximumFractionDigits: 0})}
                               </td>
                               <td className="py-2 text-right">
-                                 <span className="text-[10px] font-black text-white/40">{percentOfExpenses.toFixed(1)}%</span>
+                                 <span className="text-[12px] font-black text-white/40">{percentOfExpenses.toFixed(1)}%</span>
                               </td>
                               <td className="py-2 text-right">
-                                 <span className="text-[10px] font-black text-white/40">{percentOfIncomes.toFixed(1)}%</span>
+                                 <span className="text-[12px] font-black text-white/40 pr-4">{percentOfIncomes.toFixed(1)}%</span>
                               </td>
                             </tr>
                           );
@@ -372,7 +372,7 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
                     </tbody>
                   </table>
                   {monthlyPlan.expenses.filter(item => filterCategory === 'Todos' || item.category === filterCategory).length === 0 && (
-                    <div className="py-8 text-center text-[10px] font-black uppercase tracking-widest text-white/10">
+                    <div className="py-8 text-center text-[12px] font-black uppercase tracking-widest text-white/10">
                       Nenhum item encontrado
                     </div>
                   )}
@@ -452,10 +452,10 @@ const CategorySelector = ({ selected, onSelect, categories, onAddCategory }: {
       <AnimatePresence>
         {isOpen && (
           <motion.div 
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 5, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="absolute bottom-full mb-3 right-0 w-64 bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col backdrop-blur-3xl"
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 10, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            className="absolute top-full mt-3 right-0 w-64 bg-[#1a1a1a] border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col backdrop-blur-3xl"
           >
             <div className="p-3 border-b border-white/10">
               <div className="relative">
