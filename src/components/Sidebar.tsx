@@ -1,6 +1,7 @@
 import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { parseInvestmentExcel } from '../utils/parser';
+import logo from '../assets/logo.png';
 
 export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setActiveTab: (t: any) => void }) => {
   const { setPortfolio, addHistoryEntry, loadBackup, portfolio, settings, snapshots, customLists, equityHistory } = useInvestmentStore();
@@ -70,7 +71,7 @@ export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setAct
   return (
     <div className="w-64 h-screen bg-card border-r border-white/10 flex flex-col p-6 sticky top-0">
       <div className="flex items-center gap-3 mb-0">
-        <img src="src/assets/logo.png" alt="Logo" />
+        <img src={logo} alt="Logo" />
       </div>
 
       <nav className="flex-1 space-y-2">
