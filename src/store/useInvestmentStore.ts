@@ -25,6 +25,19 @@ interface Snapshot {
   result: string
 }
 
+export interface MonthlyItem {
+  id: string
+  name: string
+  value: number
+  category: string
+}
+
+export interface MonthlyPlan {
+  incomes: MonthlyItem[]
+  expenses: MonthlyItem[]
+  categories: string[]
+}
+
 interface InvestmentStore {
   portfolio: PortfolioData | null
   settings: {
@@ -47,6 +60,10 @@ interface InvestmentStore {
   addHistoryEntry: (total: number) => void
   updatePortfolioPrices: (quotes: any[]) => void
   loadBackup: (data: any) => void
+  setMonthlyPlan: (plan: MonthlyPlan) => void
+  monthlyPlan: MonthlyPlan
+  contributionAmount: number
+  setContributionAmount: (amount: number) => void
 }
 
 export const useInvestmentStore = create<InvestmentStore>()(
@@ -60,6 +77,12 @@ export const useInvestmentStore = create<InvestmentStore>()(
       snapshots: [],
       customLists: [],
       equityHistory: [],
+      monthlyPlan: {
+        incomes: [],
+        expenses: [],
+        categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
+      },
+      contributionAmount: 1000,
 
       setPortfolio: (portfolio) => set({ portfolio }),
       setSettings: (settings) => set({ settings }),
@@ -153,7 +176,11 @@ export const useInvestmentStore = create<InvestmentStore>()(
         snapshots: data.snapshots || [],
         customLists: data.customLists || [],
         equityHistory: data.equityHistory || [],
+        monthlyPlan: data.monthlyPlan || { incomes: [], expenses: [], categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros'] },
+        contributionAmount: data.contributionAmount || 1000,
       }),
+      setMonthlyPlan: (monthlyPlan) => set({ monthlyPlan }),
+      setContributionAmount: (contributionAmount) => set({ contributionAmount }),
     }),
     {
       name: 'investment-storage',

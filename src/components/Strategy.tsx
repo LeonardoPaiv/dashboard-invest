@@ -49,8 +49,7 @@ const SnapshotDetail = ({ snap }: { snap: any }) => {
 };
 
 export const Strategy = () => {
-  const { portfolio, settings, setSettings, snapshots, addSnapshot, deleteSnapshot } = useInvestmentStore();
-  const [aporte, setAporte] = useState(1000);
+  const { portfolio, settings, setSettings, snapshots, addSnapshot, deleteSnapshot, contributionAmount, setContributionAmount } = useInvestmentStore();
   const [selectedSnapId, setSelectedSnapId] = useState<string | null>(null);
   const [expandedSnapIds, setExpandedSnapIds] = useState<Set<string>>(new Set());
 
@@ -96,7 +95,7 @@ export const Strategy = () => {
     const prompt = `### 🤖 Prompt de Rebalanceamento Estratégico
 Atue como um analista de investimentos sênior. 
 
-**💰 Novo Aporte:** R$ ${aporte.toLocaleString('pt-BR')}
+**💰 Novo Aporte:** R$ ${contributionAmount.toLocaleString('pt-BR')}
 
 **🎯 Alvos da Estratégia:**
 - FIIs: ${settings.alvos.fiis}%
@@ -115,7 +114,7 @@ Atue como um analista de investimentos sênior.
 ${assetsSummary}
 
 **🚀 Missão:**
-Com base no aporte de R$ ${aporte.toLocaleString('pt-BR')}, sugira exatamente quais ativos comprar (e quanto em cada um) para aproximar a carteira dos meus alvos, respeitando a minha política de investimentos acima. Priorize os ativos que estão mais "para trás" in relação ao equilíbrio desejado.`;
+Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira exatamente quais ativos comprar (e quanto em cada um) para aproximar a carteira dos meus alvos, respeitando a minha política de investimentos acima. Priorize os ativos que estão mais "para trás" in relação ao equilíbrio desejado.`;
     
     navigator.clipboard.writeText(prompt);
     alert("Prompt completo copiado com sucesso!");
@@ -163,8 +162,8 @@ Com base no aporte de R$ ${aporte.toLocaleString('pt-BR')}, sugira exatamente qu
                 <div className="space-y-2">
                   <input 
                     type="number" 
-                    value={aporte} 
-                    onChange={(e) => setAporte(Number(e.target.value))}
+                    value={contributionAmount} 
+                    onChange={(e) => setContributionAmount(Number(e.target.value))}
                     className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-2xl font-black text-primary focus:border-primary/50 outline-none transition-all"
                   />
                 </div>
@@ -178,7 +177,7 @@ Com base no aporte de R$ ${aporte.toLocaleString('pt-BR')}, sugira exatamente qu
                         id,
                         date: new Date().toLocaleDateString(),
                         portfolio_total: total,
-                        aporte,
+                        aporte: contributionAmount,
                         targets: { 
                           fiis: settings.alvos.fiis, 
                           acoes: settings.alvos.acoes, 
