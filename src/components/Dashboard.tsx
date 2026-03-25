@@ -1,7 +1,7 @@
 import React from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink, Filter, ChevronDown } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink, Filter, ChevronDown, AlertCircle, Info } from 'lucide-react';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -77,8 +77,8 @@ export const Dashboard = () => {
   const allAssets = [
     ...portfolio.acoes.map(a => ({ ...a, Categoria: a.SectionName || 'Ações', SectionType: a.SectionType || 'acoes' })),
     ...portfolio.fiis.map(f => ({ ...f, Categoria: f.SectionName || 'FIIs', SectionType: f.SectionType || 'fiis' })),
-    ...portfolio.tesouro.map(t => ({ ...t, Ticker: t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
-    ...portfolio.renda_fixa.map(r => ({ ...r, Ticker: r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
+    ...portfolio.tesouro.map(t => ({ ...t, Ticker: t.Ticker || t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
+    ...portfolio.renda_fixa.map(r => ({ ...r, Ticker: r.Ticker || r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
     ...(portfolio.manualAssets || []).map(m => ({ ...m, SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
   ].map(a => ({ ...a, Categoria: a.Categoria || (a as any).category }));
 
@@ -88,9 +88,7 @@ export const Dashboard = () => {
     ...allAssets.map(a => a.Categoria)
   ])).sort();
 
-  const filteredAssets = allAssets.filter(asset => {
-    return filterCategory === 'Todos' || asset.Categoria === filterCategory;
-  });
+
 
   const compositionData = allAssets
     .filter(a => compositionFilter === 'Todos' || a.Categoria === compositionFilter)
@@ -107,15 +105,31 @@ export const Dashboard = () => {
     pieData.push({
       Ticker: 'Outros',
       Posicao: othersTotal,
-      Categoria: 'Outros',
-      isOthers: true
     } as any);
   }
 
+  const acoes = allAssets.filter(a => a.SectionType === 'acoes');
+  const fiis = allAssets.filter(a => a.SectionType === 'fiis');
+  const tesouro = allAssets.filter(a => a.SectionType === 'tesouro');
+  const rendaFixa = allAssets.filter(a => a.SectionType === 'renda_fixa');
+
+  const [activeDetailedTab, setActiveDetailedTab] = React.useState<'acoes' | 'fiis' | 'tesouro' | 'renda_fixa'>('acoes');
+  const [editingPM, setEditingPM] = React.useState<{type: string, id: string} | null>(null);
+  const [editValue, setEditValue] = React.useState('');
+  const { updateAsset } = useInvestmentStore();
+
   const COLORS = [ '#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#6366F1' ];
 
-  const totalInvestido = portfolio.resumo?.total_investido || 0;
-  const lucroPrejuizo = 0;
+  const totalInvestido = allAssets.reduce((acc, curr) => {
+    const cost = curr.PrecoMedio || curr.Cotacao || 0;
+    return acc + (curr.Quantidade * cost);
+  }, 0);
+  
+  const hasMissingAvgPrice = allAssets.some(a => !a.PrecoMedio && a.Quantidade > 0);
+
+  const lucroPrejuizo = portfolio.total_live - totalInvestido;
+
+  const lucroPercentual = totalInvestido > 0 ? (lucroPrejuizo / totalInvestido) * 100 : 0;
 
   return (
     <div className="flex-1 p-4 space-y-6 overflow-y-auto no-scrollbar">
@@ -150,11 +164,26 @@ export const Dashboard = () => {
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard title="Patrimônio Total" value={formatCurrency(portfolio.total_live)} icon={<Wallet className="text-primary" />} trend="+2.4%" />
-        <MetricCard title="Total Investido" value={formatCurrency(totalInvestido)} icon={<DollarSign className="text-secondary" />} trend="+1.1%" />
-        <MetricCard title="Lucro/Prejuízo" value={formatCurrency(lucroPrejuizo)} icon={<TrendingUp className={lucroPrejuizo >= 0 ? 'text-emerald-500' : 'text-red-500'} />} trend={lucroPrejuizo >= 0 ? "+12.5%" : "-2.5%"} />
+        <MetricCard title="Patrimônio Total" value={formatCurrency(portfolio.total_live)} icon={<Wallet className="text-primary" />} />
+        <MetricCard 
+          title="Total Investido (Custo)" 
+          value={formatCurrency(totalInvestido)} 
+          icon={<DollarSign className="text-secondary" />} 
+          tooltip={hasMissingAvgPrice ? "Alguns ativos não possuem preço médio. O valor atual foi usado como custo." : undefined}
+          alert={hasMissingAvgPrice}
+        />
+        <MetricCard 
+          title="Lucro/Prejuízo" 
+          value={formatCurrency(lucroPrejuizo)} 
+          icon={<TrendingUp className={lucroPrejuizo >= 0 ? 'text-emerald-500' : 'text-red-500'} />} 
+          trend={`${lucroPercentual >= 0 ? '+' : ''}${lucroPercentual.toFixed(2)}%`}
+          trendColor={lucroPrejuizo >= 0 ? 'text-emerald-500' : 'text-red-500'}
+          tooltip={hasMissingAvgPrice ? "Lucro incompleto. Ajuste o preço médio dos ativos sinalizados abaixo." : undefined}
+          alert={hasMissingAvgPrice}
+        />
         <MetricCard title="Ativos Totais" value={allAssets.length.toString()} icon={<ArrowUpRight className="text-orange-500" />} />
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card 
@@ -252,77 +281,304 @@ export const Dashboard = () => {
           title="Ativos Detalhados"
           reverseHeader
           extra={
-            <button
-              onClick={() => setIsAddAssetModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl transition-all group"
-            >
-              <Plus size={16} className="group-hover:rotate-90 transition-transform" />
-              <span className="text-sm font-black uppercase tracking-tight">Adicionar Ativo</span>
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="flex bg-white/5 p-1 rounded-xl">
+                {[
+                  { id: 'acoes', label: 'Ações' },
+                  { id: 'fiis', label: 'FIIs' },
+                  { id: 'tesouro', label: 'Tesouro' },
+                  { id: 'renda_fixa', label: 'R. Fixa' }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveDetailedTab(tab.id as any)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-tight transition-all ${activeDetailedTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setIsAddAssetModalOpen(true)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl transition-all group"
+              >
+                <Plus size={16} className="group-hover:rotate-90 transition-transform" />
+                <span className="text-sm font-black uppercase tracking-tight">Adicionar</span>
+              </button>
+            </div>
           }
         >
           <div className="overflow-x-auto h-[500px] scrollbar-hide">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/5 text-[14px] text-white/40 uppercase">
-                  <th className="py-4 px-2 font-black tracking-widest">Ativo</th>
-                  <th className="py-4 px-2 font-black tracking-widest">Cotação</th>
-                  <th className="py-4 px-2 font-black tracking-widest">P/L</th>
-                  <th className="py-4 px-2 font-black tracking-widest">P/VP</th>
-                  <th className="py-4 px-2 font-black tracking-widest">DY</th>
-                  <th className="py-4 px-2 font-black tracking-widest">Valor</th>
-                  <th className="py-4 px-2 font-black tracking-widest w-10"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredAssets.map((asset, i) => (
-                  <tr key={`${asset.Ticker}-${i}`} className="hover:bg-white/5 transition-colors group">
-                    <td className="py-4 px-2">
-                       <div className="flex items-center gap-2 group/ticker">
-                         <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{String(asset.Ticker)}</div>
-                         {(asset.SectionType === 'acoes' || asset.SectionType === 'fiis') && (
-                           <a 
-                             href={`https://investidor10.com.br/${asset.SectionType === 'acoes' ? 'acoes' : 'fiis'}/${asset.Ticker.replace('11', '').replace('3', '').replace('4', '').toLowerCase() === 'itub' ? asset.Ticker.toLowerCase() : asset.Ticker.toLowerCase()}/`}
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             className="text-white/10 hover:text-primary transition-colors opacity-0 group-hover/ticker:opacity-100"
-                           >
-                             <ExternalLink size={12} />
-                           </a>
-                         )}
-                       </div>
-                       <div className="text-[14px] text-white/20 font-bold">{asset.Segmento || asset.Categoria}</div>
-                    </td>
-                    <td className="py-4 px-2">
-                      <div className="font-bold text-white/90">{asset.Cotacao ? formatCurrency(asset.Cotacao) : '---'}</div>
-                    </td>
-                    <td className="py-4 px-2">
-                      <div className={`font-bold ${asset.pl < 0 ? 'text-red-400' : 'text-primary'}`}>{asset.pl ? asset.pl.toFixed(2) : '---'}</div>
-                    </td>
-                    <td className="py-4 px-2">
-                      <div className={`font-bold ${asset.pvp > 1.5 ? 'text-orange-400' : 'text-emerald-400'}`}>{asset.pvp ? asset.pvp.toFixed(2) : '---'}</div>
-                    </td>
-                    <td className="py-4 px-2">
-                      <div className="font-bold text-emerald-500">{asset.dy ? `${asset.dy.toFixed(2)}%` : '---'}</div>
-                    </td>
-                    <td className="py-4 px-2">
-                      <div className="font-black text-white/90">{formatCurrency(asset.Posicao)}</div>
-                      <div className="text-[12px] text-white/20 font-medium">{asset.Quantidade} un.</div>
-                    </td>
-                    <td className="py-4 px-2">
-                      {(asset as any).id && (
-                        <button 
-                          onClick={() => deleteManualAsset((asset as any).id)}
-                          className="text-white/5 hover:text-red-500 transition-colors p-1"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </td>
+            {(activeDetailedTab === 'acoes' || activeDetailedTab === 'fiis') && (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/5 text-[14px] text-white/40 uppercase">
+                    <th className="py-4 px-2 font-black tracking-widest">Ativo</th>
+                    <th className="py-4 px-2 font-black tracking-widest">Cotação</th>
+                    <th className="py-4 px-2 font-black tracking-widest">Aloc.</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-right">Rent.</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-right">Valor</th>
+                    <th className="py-4 px-2 font-black tracking-widest w-10"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {(activeDetailedTab === 'acoes' ? acoes : fiis).map((asset, i) => {
+                    const assetAllocation = portfolio.total_live > 0 ? (asset.Posicao / portfolio.total_live) * 100 : 0;
+                    const individualYield = asset.PrecoMedio > 0 ? ((asset.Cotacao - asset.PrecoMedio) / asset.PrecoMedio) * 100 : 0;
+                    
+                    return (
+                      <tr key={`${asset.Ticker}-${i}`} className="hover:bg-white/5 transition-colors group">
+                        <td className="py-4 px-2">
+                          <div className="flex items-center gap-2 group/ticker">
+                            <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{String(asset.Ticker)}</div>
+                            {!asset.PrecoMedio && (
+                              <div className="text-orange-500/80" title="Preço médio faltando">
+                                <AlertCircle size={12} />
+                              </div>
+                            )}
+                            <a 
+                              href={`https://investidor10.com.br/${activeDetailedTab === 'acoes' ? 'acoes' : 'fiis'}/${asset.Ticker.replace('11', '').replace('3', '').replace('4', '').toLowerCase() === 'itub' ? asset.Ticker.toLowerCase() : asset.Ticker.toLowerCase()}/`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-white/10 hover:text-primary transition-colors opacity-0 group-hover/ticker:opacity-100"
+                            >
+                              <ExternalLink size={12} />
+                            </a>
+                          </div>
+                          <div className="text-[14px] text-white/20 font-bold">{asset.Segmento || asset.Categoria}</div>
+                        </td>
+                        <td className="py-4 px-2">
+                          <div className="font-bold text-white/90">{asset.Cotacao ? formatCurrency(asset.Cotacao) : '---'}</div>
+                          {editingPM && editingPM.id === (asset.Ticker || (asset as any).id) ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              className="w-20 bg-white/5 border border-primary/30 rounded text-[10px] text-white px-1 outline-none"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onBlur={() => {
+                                updateAsset(asset.SectionType || activeDetailedTab, asset.Ticker || (asset as any).id, { PrecoMedio: parseFloat(editValue.replace(',', '.')) || 0 });
+                                setEditingPM(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') e.currentTarget.blur();
+                                if (e.key === 'Escape') setEditingPM(null);
+                              }}
+                            />
+                          ) : (
+                            <div 
+                              className="text-[10px] text-white/20 hover:text-primary transition-colors cursor-pointer"
+                              onClick={() => {
+                                setEditingPM({ type: asset.SectionType || activeDetailedTab, id: asset.Ticker || (asset as any).id });
+                                setEditValue(String(asset.PrecoMedio || ''));
+                              }}
+                            >
+                              PM: {asset.PrecoMedio ? formatCurrency(asset.PrecoMedio) : '---'}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4 px-2">
+                          <div className="font-bold text-primary/80">{assetAllocation.toFixed(1)}%</div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className={`font-bold ${individualYield >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {individualYield !== 0 ? `${individualYield >= 0 ? '+' : ''}${individualYield.toFixed(2)}%` : '---'}
+                          </div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className="font-black text-white/90">{formatCurrency(asset.Posicao)}</div>
+                          <div className="text-[12px] text-white/20 font-medium">{asset.Quantidade} un.</div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          {(asset as any).id && (
+                            <button 
+                              onClick={() => deleteManualAsset((asset as any).id)}
+                              className="text-white/5 hover:text-red-500 transition-colors p-1"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+
+            {activeDetailedTab === 'renda_fixa' && (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/5 text-[14px] text-white/40 uppercase">
+                    <th className="py-4 px-2 font-black tracking-widest">Produto</th>
+                    <th className="py-4 px-2 font-black tracking-widest">Indexador</th>
+                    <th className="py-4 px-2 font-black tracking-widest">Vencimento</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-right">Aloc.</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-right">Valor</th>
+                    <th className="py-4 px-2 font-black tracking-widest w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {rendaFixa.map((asset, i) => {
+                    const assetAllocation = portfolio.total_live > 0 ? (asset.Posicao / portfolio.total_live) * 100 : 0;
+                    return (
+                      <tr key={`${asset.Ticker}-${i}`} className="hover:bg-white/5 transition-colors group">
+                        <td className="py-4 px-2">
+                          <div className="flex items-center gap-2">
+                            <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{asset.Ticker}</div>
+                            {!asset.PrecoMedio && (
+                              <div className="text-orange-500/80" title="Preço médio faltando">
+                                <AlertCircle size={12} />
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-[12px] text-white/20 font-bold">{asset.Quantidade} un.</div>
+                        </td>
+                        <td className="py-4 px-2">
+                          <div className="font-bold text-white/70">{asset.Indexador || '---'}</div>
+                        </td>
+                        <td className="py-4 px-2">
+                          <div className="font-bold text-white/70">{asset.Vencimento || '---'}</div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className="font-bold text-primary/80">{assetAllocation.toFixed(1)}%</div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className="font-black text-white/90">{formatCurrency(asset.Posicao)}</div>
+                          {editingPM && editingPM.id === (asset.Ticker || (asset as any).id) ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="text-[10px] text-white/20 font-bold uppercase">PM:</span>
+                              <input
+                                autoFocus
+                                type="text"
+                                className="w-20 bg-white/5 border border-primary/30 rounded text-[10px] text-white px-1 text-right outline-none"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => {
+                                  updateAsset(asset.SectionType || activeDetailedTab, asset.Ticker || (asset as any).id, { PrecoMedio: parseFloat(editValue.replace(',', '.')) || 0 });
+                                  setEditingPM(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                  if (e.key === 'Escape') setEditingPM(null);
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div 
+                              className="text-[10px] text-white/20 hover:text-primary transition-colors cursor-pointer"
+                              onClick={() => {
+                                setEditingPM({ type: asset.SectionType || activeDetailedTab, id: asset.Ticker || (asset as any).id });
+                                setEditValue(String(asset.PrecoMedio || ''));
+                              }}
+                            >
+                              PM: {asset.PrecoMedio ? formatCurrency(asset.PrecoMedio) : '---'}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          {(asset as any).id && (
+                            <button 
+                              onClick={() => deleteManualAsset((asset as any).id)}
+                              className="text-white/5 hover:text-red-500 transition-colors p-1"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+
+            {activeDetailedTab === 'tesouro' && (
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/5 text-[14px] text-white/40 uppercase">
+                    <th className="py-4 px-2 font-black tracking-widest">Produto</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-right">Bruto</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-center">Vencimento</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-right">Aloc.</th>
+                    <th className="py-4 px-2 font-black tracking-widest text-right">Líquido</th>
+                    <th className="py-4 px-2 font-black tracking-widest w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {tesouro.map((asset, i) => {
+                    const assetAllocation = portfolio.total_live > 0 ? (asset.Posicao / portfolio.total_live) * 100 : 0;
+                    return (
+                      <tr key={`${asset.Ticker}-${i}`} className="hover:bg-white/5 transition-colors group">
+                        <td className="py-4 px-2">
+                          <div className="flex items-center gap-2">
+                            <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{asset.Ticker}</div>
+                            {!asset.PrecoMedio && (
+                              <div className="text-orange-500/80" title="Preço médio faltando">
+                                <AlertCircle size={12} />
+                              </div>
+                            )}
+                          </div>
+                          {editingPM && editingPM.id === (asset.Ticker || (asset as any).id) ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-white/20 font-bold uppercase">Apl:</span>
+                              <input
+                                autoFocus
+                                type="text"
+                                className="w-20 bg-white/5 border border-primary/30 rounded text-[10px] text-white px-1 outline-none"
+                                value={editValue}
+                                onChange={(e) => setEditValue(e.target.value)}
+                                onBlur={() => {
+                                  updateAsset(asset.SectionType || activeDetailedTab, asset.Ticker || (asset as any).id, { PrecoMedio: parseFloat(editValue.replace(',', '.')) || 0 });
+                                  setEditingPM(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.currentTarget.blur();
+                                  if (e.key === 'Escape') setEditingPM(null);
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div 
+                              className="text-[12px] text-white/20 font-bold hover:text-primary transition-colors cursor-pointer"
+                              onClick={() => {
+                                setEditingPM({ type: asset.SectionType || activeDetailedTab, id: asset.Ticker || (asset as any).id });
+                                setEditValue(String(asset.PrecoMedio || ''));
+                              }}
+                            >
+                              Aplicado: {formatCurrency(asset.PrecoMedio)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className="font-bold text-white/70">{asset.ValorBruto ? formatCurrency(asset.ValorBruto) : '---'}</div>
+                        </td>
+                        <td className="py-4 px-2 text-center">
+                          <div className="font-bold text-white/70">{asset.Vencimento || '---'}</div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className="font-bold text-primary/80">{assetAllocation.toFixed(1)}%</div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          <div className="font-black text-emerald-500">{formatCurrency(asset.Posicao)}</div>
+                          <div className="text-[10px] text-white/20">{asset.Quantidade} un.</div>
+                        </td>
+                        <td className="py-4 px-2 text-right">
+                          {(asset as any).id && (
+                            <button 
+                              onClick={() => deleteManualAsset((asset as any).id)}
+                              className="text-white/5 hover:text-red-500 transition-colors p-1"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </Card>
 
@@ -587,21 +843,32 @@ const CompositionFilter = ({ categories, activeFilter, onSelect }: any) => {
   );
 };
 
-const MetricCard = ({ title, value, icon, trend }: any) => (
-  <div className="bg-card border border-white/10 p-6 rounded-3xl relative overflow-hidden group hover:border-primary/30 transition-all shadow-xl">
+const MetricCard = ({ title, value, icon, trend, trendColor = 'text-emerald-500', tooltip, alert }: any) => (
+  <div className={`bg-card border ${alert ? 'border-orange-500/30' : 'border-white/10'} p-6 rounded-3xl relative overflow-hidden group hover:border-primary/30 transition-all shadow-xl`} title={tooltip}>
     <div className="flex justify-between items-start mb-4 relative z-10">
-      <div className="w-11 h-11 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-primary/20 transition-all">
-        {React.cloneElement(icon, { size: 22 })}
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-primary/20 transition-all">
+          {React.cloneElement(icon, { size: 22 })}
+        </div>
+        {alert && (
+          <div className="text-orange-500 animate-pulse">
+            <AlertCircle size={18} />
+          </div>
+        )}
       </div>
-      {trend && <span className="text-[14px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg tracking-tight">{trend}</span>}
+      {trend && <span className={`text-[14px] font-black ${trendColor} bg-white/5 px-2 py-1 rounded-lg tracking-tight`}>{trend}</span>}
     </div>
     <div className="relative z-10">
-      <p className="text-white/30 text-[14px] font-black mb-1 uppercase tracking-widest">{title}</p>
+      <p className="text-white/30 text-[14px] font-black mb-1 uppercase tracking-widest flex items-center gap-2">
+        {title}
+        {tooltip && <Info size={12} className="opacity-40" />}
+      </p>
       <p className="text-2xl font-black text-white/90 tracking-tighter">{value}</p>
     </div>
-    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/2 blur-[80px] group-hover:bg-primary/5 transition-all"></div>
+    <div className={`absolute top-0 right-0 w-32 h-32 ${alert ? 'bg-orange-500/5' : 'bg-primary/2'} blur-[80px] group-hover:bg-primary/5 transition-all`}></div>
   </div>
 );
+
 
 const Card = ({ title, icon, children, extra, reverseHeader }: any) => (
   <div className="bg-card border border-white/10 rounded-[32px] p-6 h-full flex flex-col shadow-2xl relative">
