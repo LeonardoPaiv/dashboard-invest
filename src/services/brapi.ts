@@ -18,6 +18,13 @@ export interface QuoteData {
   dividendYield?: number;
 }
 
+const parseBrazilianNumber = (val: string) => {
+  if (!val || val === '---' || val === 'N/A') return undefined;
+  const clean = val.replace('%', '').replace(/\./g, '').replace(',', '.').trim();
+  const num = parseFloat(clean);
+  return isNaN(num) ? undefined : num;
+};
+
 // Função de Scraping para Investidor10 - Focada apenas em P/VP e DY
 const scrapeInvestidor10 = async (ticker: string, isFII: boolean) => {
   const url = isFII 
@@ -25,7 +32,7 @@ const scrapeInvestidor10 = async (ticker: string, isFII: boolean) => {
     : `/i10/acoes/${ticker.toLowerCase()}/`;
 
   try {
-    const response = await axios.get(url, { timeout: 10000 });
+    const response = await axios.get(url, { timeout: 15000 });
     const $ = cheerio.load(response.data);
 
     const getCardValue = (label: string) => {
@@ -39,28 +46,26 @@ const scrapeInvestidor10 = async (ticker: string, isFII: boolean) => {
       return value;
     };
 
-    const parseBrazilianNumber = (val: string) => {
-      if (!val || val === '---' || val === 'N/A') return undefined;
-      const clean = val.replace('%', '').replace(/\./g, '').replace(',', '.').trim();
-      const num = parseFloat(clean);
-      return isNaN(num) ? undefined : num;
-    };
-
-    return {
+    const data = {
       pvp: parseBrazilianNumber(getCardValue('P/VP')),
       dy: parseBrazilianNumber(getCardValue('DY'))
     };
+    
+    console.log(`Scraping I10 para ${ticker}:`, data);
+    return data;
   } catch (error) {
-    console.error(`Erro no scraping do ticker ${ticker}:`, error);
+    console.warn(`Erro no scraping do ticker ${ticker}:`, error);
     return null;
   }
 };
 
 export const fetchQuotes = async (symbols: string[], isManualLoad = false): Promise<QuoteData[]> => {
   if (symbols.length === 0) return [];
+  console.log(`Buscando cotações para ${symbols.length} ativos (Manual: ${isManualLoad})`);
   
   const fetchPromises = symbols.map(async (symbol) => {
-    const sanitizedSymbol = symbol.toUpperCase().replace('12', '11');
+    if (!symbol) return null;
+    const sanitizedSymbol = String(symbol).toUpperCase().trim();
     const isFII = sanitizedSymbol.endsWith('11');
     
     try {
