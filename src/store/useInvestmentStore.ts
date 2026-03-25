@@ -16,6 +16,33 @@ interface PortfolioData {
   }
 }
 
+export interface ColumnMapping {
+  ticker: number | null;
+  position: number | null;
+  allocation: number | null;
+  price: number | null;
+  quantity: number | null;
+  extra?: number | null; // e.g. Vencimento
+}
+
+export interface SectionConfig {
+  id: string;
+  name: string;
+  trigger: string;
+  type: 'fiis' | 'acoes' | 'tesouro' | 'renda_fixa' | 'dividendos';
+  mapping: ColumnMapping;
+}
+
+export interface ImportConfig {
+  resumoRow: number;
+  resumoCols: {
+    total_investido: number;
+    saldo_disponivel: number;
+    saldo_projetado: number;
+  };
+  sections: SectionConfig[];
+}
+
 interface Snapshot {
   id: string
   date: string
@@ -69,6 +96,8 @@ interface InvestmentStore {
   assetCategories: string[]
   contributionAmount: number
   setContributionAmount: (amount: number) => void
+  importConfig: ImportConfig
+  setImportConfig: (config: ImportConfig) => void
 }
 
 export const useInvestmentStore = create<InvestmentStore>()(
@@ -89,6 +118,44 @@ export const useInvestmentStore = create<InvestmentStore>()(
       },
       assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
       contributionAmount: 1000,
+      importConfig: {
+        resumoRow: 3,
+        resumoCols: {
+          total_investido: 0,
+          saldo_disponivel: 1,
+          saldo_projetado: 2
+        },
+        sections: [
+          {
+            id: 'fiis',
+            name: 'Fundos Imobiliários',
+            trigger: 'Fundos Listados',
+            type: 'fiis',
+            mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 }
+          },
+          {
+            id: 'acoes',
+            name: 'Ações',
+            trigger: 'Renda Variável Brasil',
+            type: 'acoes',
+            mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 }
+          },
+          {
+            id: 'tesouro',
+            name: 'Tesouro Direto',
+            trigger: 'Tesouro Direto',
+            type: 'tesouro',
+            mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 }
+          },
+          {
+            id: 'renda_fixa',
+            name: 'Renda Fixa',
+            trigger: 'Renda Fixa',
+            type: 'renda_fixa',
+            mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 }
+          }
+        ]
+      },
 
       setPortfolio: (portfolio) => set({ portfolio }),
       setSettings: (settings) => set({ settings }),
@@ -245,6 +312,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
       }),
       setMonthlyPlan: (monthlyPlan) => set({ monthlyPlan }),
       setContributionAmount: (contributionAmount) => set({ contributionAmount }),
+      setImportConfig: (importConfig) => set({ importConfig }),
     }),
     {
       name: 'investment-storage',

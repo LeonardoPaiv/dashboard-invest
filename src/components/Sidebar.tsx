@@ -1,21 +1,21 @@
-import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet } from 'lucide-react';
+import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Settings } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { parseInvestmentExcel } from '../utils/parser';
 import logo from '../assets/logo.png';
 
 export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setActiveTab: (t: any) => void }) => {
-  const { setPortfolio, addHistoryEntry, loadBackup, portfolio, settings, snapshots, customLists, equityHistory } = useInvestmentStore();
+  const { setPortfolio, addHistoryEntry, loadBackup, portfolio, settings, snapshots, customLists, equityHistory, importConfig } = useInvestmentStore();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       try {
-        const data = await parseInvestmentExcel(file);
+        const data = await parseInvestmentExcel(file, importConfig);
         // Calculate total_live
         const total_live = [...data.fiis, ...data.acoes, ...data.tesouro, ...data.renda_fixa]
           .reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
         
-        setPortfolio({ ...data, total_live });
+        setPortfolio({ ...data, manualAssets: [], total_live });
         addHistoryEntry(total_live);
         e.target.value = '';
       } catch (err) {
@@ -105,12 +105,18 @@ export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setAct
           active={activeTab === 'history'} 
           onClick={() => setActiveTab('history')} 
         />
+        <NavItem 
+          icon={<Settings size={20}/>} 
+          label="Importação" 
+          active={activeTab === 'settings'} 
+          onClick={() => setActiveTab('settings')} 
+        />
       </nav>
 
       <div className="mt-auto space-y-3 pt-6 border-t border-white/5">
         <label className="flex items-center gap-2 p-3 rounded-xl border border-dashed border-white/20 hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all group">
           <Upload size={18} className="text-white/40 group-hover:text-primary" />
-          <span className="text-xs font-bold uppercase tracking-wider text-white/40 group-hover:text-white">Planilha XP.inc</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-white/40 group-hover:text-white">Planilha em xlsx</span>
           <input type="file" className="hidden" accept=".xlsx" onChange={handleFileUpload} />
         </label>
 
