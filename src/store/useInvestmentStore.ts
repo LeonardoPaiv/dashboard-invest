@@ -205,7 +205,6 @@ export const useInvestmentStore = create<InvestmentStore>()(
         const newTotalLive = [...state.portfolio.acoes, ...state.portfolio.fiis, ...state.portfolio.tesouro, ...state.portfolio.renda_fixa, ...newManualAssets]
           .reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
           
-        const manualInvested = newManualAssets.reduce((acc, curr) => acc + (curr.Quantidade * curr.PrecoMedio), 0);
         const originalInvested = state.portfolio.resumo?.total_investido || 0;
         
         return {
