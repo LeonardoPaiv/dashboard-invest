@@ -39,7 +39,7 @@ export const Projection = () => {
     for (let i = 1; i <= months; i++) {
       currentTotal = currentTotal * (1 + monthlyRate) + monthlyContribution;
       currentInvested += monthlyContribution;
-      
+
       // Add data points every year or if it's the last month
       if (i % 12 === 0 || i === months) {
         data.push({
@@ -65,12 +65,12 @@ export const Projection = () => {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
         {/* Controls Card */}
         <div className="xl:col-span-1 space-y-6">
-          <Card title="Configurações" icon={<Landmark className="text-primary" size={20}/>}>
+          <Card title="Configurações" icon={<Landmark className="text-primary" size={20} />}>
             <div className="space-y-6">
               <div className="space-y-2">
                 <div className="flex justify-between items-end mb-1">
                   <label className="text-[10px] font-black text-white/30 uppercase tracking-widest">Capital Inicial</label>
-                  <button 
+                  <button
                     onClick={() => setInitialCapital(initialInvested)}
                     className="text-[9px] font-black text-primary hover:text-primary-hover flex items-center gap-1 transition-colors uppercase"
                   >
@@ -79,109 +79,87 @@ export const Projection = () => {
                 </div>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 font-bold text-sm">R$</span>
-                  <input 
-                    type="number" 
-                    value={initialCapital} 
+                  <input
+                    type="number"
+                    value={initialCapital.toFixed(2)}
                     onChange={(e) => setInitialCapital(Number(e.target.value))}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 pl-10 text-lg font-bold text-white focus:border-primary/50 outline-none transition-all"
                   />
                 </div>
               </div>
 
-              <Input 
-                label="Aporte Mensal (R$)" 
-                value={monthlyContribution} 
+              <Input
+                label="Aporte Mensal (R$)"
+                value={monthlyContribution}
                 onChange={(e: any) => setMonthlyContribution(Number(e.target.value))}
-                icon={<DollarSign size={14} className="text-white/20"/>}
+                icon={<DollarSign size={14} className="text-white/20" />}
               />
 
-              <Input 
-                label="Taxa Anual (%)" 
-                value={annualRate} 
+              <Input
+                label="Taxa Anual (%)"
+                value={annualRate}
                 onChange={(e: any) => setAnnualRate(Number(e.target.value))}
-                icon={<Percent size={14} className="text-white/20"/>}
+                icon={<Percent size={14} className="text-white/20" />}
               />
 
-              <Input 
-                label="Tempo (Anos)" 
-                value={years} 
+              <Input
+                label="Tempo (Anos)"
+                value={years}
                 onChange={(e: any) => setYears(Number(e.target.value))}
-                icon={<Calendar size={14} className="text-white/20"/>}
+                icon={<Calendar size={14} className="text-white/20" />}
               />
             </div>
           </Card>
-
-          {/* Highlights Card */}
-          <div className="grid grid-cols-3 gap-4">
-            <SummaryCard 
-              label="Total Acumulado" 
-              value={formatCurrency(finalResult.total)} 
-              subValue="Patrimônio final projetado"
-              color="text-primary"
-            />
-            <SummaryCard 
-              label="Total Investido" 
-              value={formatCurrency(finalResult.invested)} 
-              subValue="Soma de todos os aportes"
-              color="text-white/60"
-            />
-            <SummaryCard 
-              label="Total em Juros" 
-              value={formatCurrency(finalResult.interest)} 
-              subValue="Rendimento bruto do período"
-              color="text-emerald-500"
-            />
-          </div>
         </div>
 
         {/* Chart Card */}
         <div className="xl:col-span-3">
-          <Card title="Gráfico de Evolução" icon={<TrendingUp className="text-secondary" size={20}/>}>
+          <Card title="Gráfico de Evolução" icon={<TrendingUp className="text-secondary" size={20} />}>
             <div className="h-[500px] w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={projectionData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="colorInvested" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#94a3b8" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.1} />
+                      <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 12, fontWeight: 700 }}
                     dy={10}
                   />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
                     tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10, fontWeight: 700 }}
-                    tickFormatter={(value) => `R$ ${value >= 1000000 ? (value/1000000).toFixed(1) + 'M' : (value/1000).toFixed(0) + 'k'}`}
+                    tickFormatter={(value) => `R$ ${value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' : (value / 1000).toFixed(0) + 'k'}`}
                   />
                   <Tooltip content={<CustomTooltip />} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="total" 
-                    stroke="#3b82f6" 
+                  <Area
+                    type="monotone"
+                    dataKey="total"
+                    stroke="#3b82f6"
                     strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorTotal)" 
+                    fillOpacity={1}
+                    fill="url(#colorTotal)"
                     name="Patrimônio Total"
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="invested" 
-                    stroke="#94a3b8" 
+                  <Area
+                    type="monotone"
+                    dataKey="invested"
+                    stroke="#94a3b8"
                     strokeWidth={2}
                     strokeDasharray="5 5"
-                    fillOpacity={1} 
-                    fill="url(#colorInvested)" 
+                    fillOpacity={1}
+                    fill="url(#colorInvested)"
                     name="Total Investido"
                   />
                 </AreaChart>
@@ -189,7 +167,29 @@ export const Projection = () => {
             </div>
           </Card>
         </div>
+
       </div>
+        {/* Highlights Card */}
+        <div className="grid grid-cols-3 gap-4">
+          <SummaryCard
+            label="Total Acumulado"
+            value={formatCurrency(finalResult.total)}
+            subValue="Patrimônio final projetado"
+            color="text-primary"
+          />
+          <SummaryCard
+            label="Total Investido"
+            value={formatCurrency(finalResult.invested)}
+            subValue="Soma de todos os aportes"
+            color="text-white/60"
+          />
+          <SummaryCard
+            label="Total em Juros"
+            value={formatCurrency(finalResult.interest)}
+            subValue="Rendimento bruto do período"
+            color="text-emerald-500"
+          />
+        </div>
     </div>
   );
 };
@@ -237,9 +237,9 @@ const Input = ({ label, value, onChange, icon }: any) => (
     <label className="text-[10px] font-black text-white/30 uppercase tracking-widest">{label}</label>
     <div className="relative">
       {icon && <div className="absolute left-4 top-1/2 -translate-y-1/2">{icon}</div>}
-      <input 
-        type="number" 
-        value={value} 
+      <input
+        type="number"
+        value={value}
         onChange={onChange}
         className={`w-full bg-white/5 border border-white/10 rounded-2xl p-4 ${icon ? 'pl-10' : ''} text-sm font-bold text-white focus:border-primary/50 outline-none transition-all`}
       />
