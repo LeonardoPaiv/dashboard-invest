@@ -15,7 +15,7 @@ const formatCurrency = (value: number) => {
 import { fetchQuotes } from '../services/brapi';
 
 export const Dashboard = () => {
-  const { portfolio, equityHistory, updatePortfolioPrices, addHistoryEntry, customLists, assetCategories, addManualAsset, addAssetCategory, deleteManualAsset } = useInvestmentStore();
+  const { portfolio, equityHistory, updatePortfolioPrices, addHistoryEntry, customLists, assetCategories, addManualAsset, addAssetCategory, deleteManualAsset, importConfig } = useInvestmentStore();
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [filterCategory, setFilterCategory] = React.useState('Todos');
   const [activeListIndex, setActiveListIndex] = React.useState(0);
@@ -57,12 +57,18 @@ export const Dashboard = () => {
   if (!portfolio) return <div className="p-10 text-center text-white/40">Faça upload da carteira primeiro.</div>;
 
   const allAssets = [
-    ...portfolio.acoes.map(a => ({ ...a, Categoria: 'Ações' })),
-    ...portfolio.fiis.map(f => ({ ...f, Categoria: 'FIIs' })),
-    ...portfolio.tesouro.map(t => ({ ...t, Ticker: t.Titulo, Categoria: 'Renda Fixa', Segmento: 'Tesouro Direto' })),
-    ...portfolio.renda_fixa.map(r => ({ ...r, Ticker: r.Ativo, Categoria: 'Renda Fixa', Segmento: 'Renda Fixa' })),
-    ...(portfolio.manualAssets || [])
+    ...portfolio.acoes.map(a => ({ ...a, Categoria: a.SectionName || 'Ações', SectionType: a.SectionType || 'acoes' })),
+    ...portfolio.fiis.map(f => ({ ...f, Categoria: f.SectionName || 'FIIs', SectionType: f.SectionType || 'fiis' })),
+    ...portfolio.tesouro.map(t => ({ ...t, Ticker: t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
+    ...portfolio.renda_fixa.map(r => ({ ...r, Ticker: r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
+    ...(portfolio.manualAssets || []).map(m => ({ ...m, SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
   ];
+
+  const dashboardCategories = Array.from(new Set([
+    ...importConfig.sections.map(s => s.name),
+    ...assetCategories,
+    ...allAssets.map(a => a.Categoria)
+  ])).sort();
 
   const filteredAssets = allAssets.filter(asset => {
     return filterCategory === 'Todos' || asset.Categoria === filterCategory;
@@ -101,7 +107,7 @@ export const Dashboard = () => {
           <p className="text-white/40">Sua jornada financeira em dados reais.</p>
         </div>
         <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar max-w-[500px]">
-          {['Todos', ...assetCategories].map((cat) => (
+          {['Todos', ...dashboardCategories].map((cat) => (
             <button
               key={cat}
               onClick={() => setFilterCategory(cat)}
@@ -133,7 +139,7 @@ export const Dashboard = () => {
           title="Composição" 
           extra={
             <CompositionFilter 
-              categories={assetCategories} 
+              categories={dashboardCategories} 
               activeFilter={compositionFilter} 
               onSelect={setCompositionFilter} 
             />
@@ -252,9 +258,9 @@ export const Dashboard = () => {
                     <td className="py-4 px-2">
                        <div className="flex items-center gap-2 group/ticker">
                          <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{String(asset.Ticker)}</div>
-                         {(asset.Categoria === 'Ações' || asset.Categoria === 'FIIs') && (
+                         {(asset.SectionType === 'acoes' || asset.SectionType === 'fiis') && (
                            <a 
-                             href={`https://investidor10.com.br/${asset.Categoria === 'Ações' ? 'acoes' : 'fiis'}/${asset.Ticker.replace('11', '').replace('3', '').replace('4', '').toLowerCase() === 'itub' ? asset.Ticker.toLowerCase() : asset.Ticker.toLowerCase()}/`}
+                             href={`https://investidor10.com.br/${asset.SectionType === 'acoes' ? 'acoes' : 'fiis'}/${asset.Ticker.replace('11', '').replace('3', '').replace('4', '').toLowerCase() === 'itub' ? asset.Ticker.toLowerCase() : asset.Ticker.toLowerCase()}/`}
                              target="_blank"
                              rel="noopener noreferrer"
                              className="text-white/10 hover:text-primary transition-colors opacity-0 group-hover/ticker:opacity-100"
@@ -359,7 +365,7 @@ export const Dashboard = () => {
           addManualAsset(asset);
           setIsAddAssetModalOpen(false);
         }}
-        categories={assetCategories}
+        categories={dashboardCategories}
         onAddCategory={addAssetCategory}
       />
     </div>

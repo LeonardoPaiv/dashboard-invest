@@ -61,29 +61,61 @@ export const parseInvestmentExcel = async (file: File, config: ImportConfig): Pr
         for (let i = 0; i < rows.length; i++) {
           const row = rows[i];
           if (!row || row.length === 0) continue;
-          
-          const rowStr = row.join(' ');
+
+          // Normalize row string: collapse multiple spaces and trim
+          const rowStr = row.map((cell: any) => String(cell || '').toLowerCase().trim()).filter(Boolean).join(' ');
 
           // Check for section triggers
           for (const section of config.sections) {
-            if (rowStr.includes(section.trigger)) {
+            const trigger = section.trigger.toLowerCase().trim();
+            
+            // Allow partial matches if the trigger is distinct enough, or exact word matches
+            if (rowStr.includes(trigger)) {
               let j = i + 1;
-              // Skip header if it contains words like "Ticker", "Ativo", "Produto"
-              if (rows[j] && (String(rows[j][0]).includes("Ticker") || String(rows[j][0]).includes("Ativo") || String(rows[j][0]).includes("Produto"))) {
-                j++;
+              
+              // Skip potential header rows (up to 2)
+              for (let k = 0; k < 2; k++) {
+                if (rows[j]) {
+                  const headerStr = rows[j].map(cell => String(cell || '').toLowerCase()).join(' ');
+                  if (headerStr.includes("ticker") || headerStr.includes("ativo") || headerStr.includes("produto") || headerStr.includes("cotação") || headerStr.includes("quantidade")) {
+                    j++;
+                  } else {
+                    break;
+                  }
+                }
               }
 
-              while (j < rows.length && rows[j] && rows[j][0] && String(rows[j][0]).trim() !== "" && String(rows[j][0]).trim() !== "0") {
+              // Read assets until we find an empty row or a row that looks like a subtotal/summary
+              while (j < rows.length && rows[j]) {
                 const r = rows[j];
                 const m = section.mapping;
                 
+                // If row is completely empty, stop this section
+                if (!r || r.every(cell => !cell || String(cell).trim() === "")) break;
+
+                // If it's a subtotal or total row, stop
+                const rStr = r.join(' ').toLowerCase();
+                if (rStr.includes("total ") || rStr.includes("subtotal") || rStr.includes("resumo")) break;
+
+                // Stop if we find another trigger from any section
+                const isAnotherTrigger = config.sections.some(s => rStr.includes(s.trigger.toLowerCase()));
+                if (isAnotherTrigger && j > i + 1) break;
+
+                // If ticker/name column is empty, skip this row but continue the loop
+                if (m.ticker !== null && (!r[m.ticker] || String(r[m.ticker]).trim() === "" || String(r[m.ticker]).trim() === "0")) {
+                  j++;
+                  continue; 
+                }
+
                 const item: any = {
                   Ticker: m.ticker !== null ? String(r[m.ticker] || '') : 'N/A',
                   Posicao: m.position !== null ? cleanCurrency(r[m.position]) : 0,
                   Alocacao: m.allocation !== null ? cleanPercentage(r[m.allocation]) : 0,
                   Cotacao: m.price !== null ? cleanCurrency(r[m.price]) : 0,
                   Quantidade: m.quantity !== null ? (parseFloat(String(r[m.quantity] || 0))) : 0,
-                  Segmento: 'Outros'
+                  Segmento: 'Outros',
+                  SectionName: section.name,
+                  SectionType: section.type
                 };
 
                 if (m.extra !== null && m.extra !== undefined) {
@@ -97,7 +129,8 @@ export const parseInvestmentExcel = async (file: File, config: ImportConfig): Pr
 
                 j++;
               }
-              i = j;
+              i = j; // Advance main loop
+              break; // Found section, don't check other triggers for this row
             }
           }
 
