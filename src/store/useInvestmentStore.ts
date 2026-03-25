@@ -98,6 +98,10 @@ interface InvestmentStore {
   importConfig: ImportConfig
   setImportConfig: (config: ImportConfig) => void
   updateAsset: (type: string, ticker: string, updates: any) => void
+  historicalTransactions: any[]
+  setHistoricalTransactions: (transactions: any[]) => void
+  activeTab: string
+  setActiveTab: (tab: string) => void
 }
 
 export const useInvestmentStore = create<InvestmentStore>()(
@@ -111,6 +115,10 @@ export const useInvestmentStore = create<InvestmentStore>()(
       snapshots: [],
       customLists: [],
       equityHistory: [],
+      historicalTransactions: [],
+      setHistoricalTransactions: (historicalTransactions) => set({ historicalTransactions }),
+      activeTab: 'dashboard',
+      setActiveTab: (activeTab) => set({ activeTab }),
       monthlyPlan: {
         incomes: [],
         expenses: [],

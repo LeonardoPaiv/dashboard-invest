@@ -1,10 +1,10 @@
-import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Settings } from 'lucide-react';
+import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Settings, Calculator } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { parseInvestmentExcel } from '../utils/parser';
 import logo from '../assets/logo.png';
 
-export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setActiveTab: (t: any) => void }) => {
-  const { setPortfolio, addHistoryEntry, loadBackup, portfolio, settings, snapshots, customLists, equityHistory, importConfig } = useInvestmentStore();
+export const Sidebar = () => {
+  const { activeTab, setActiveTab, setPortfolio, addHistoryEntry, loadBackup, portfolio, settings, snapshots, customLists, equityHistory, importConfig } = useInvestmentStore();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,6 +98,18 @@ export const Sidebar = ({ activeTab, setActiveTab }: { activeTab: string, setAct
           label="Plano Mensal" 
           active={activeTab === 'plano-mensal'} 
           onClick={() => setActiveTab('plano-mensal')} 
+        />
+        <NavItem 
+          icon={<Calculator size={20}/>} 
+          label="Preço Médio" 
+          active={activeTab === 'preco-medio'} 
+          onClick={() => setActiveTab('preco-medio')} 
+        />
+        <NavItem 
+          icon={<Landmark size={20}/>} 
+          label="Imposto de Renda" 
+          active={activeTab === 'imposto-renda'} 
+          onClick={() => setActiveTab('imposto-renda')} 
         />
         <NavItem 
           icon={<History size={20}/>} 
