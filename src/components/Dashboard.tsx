@@ -1,7 +1,7 @@
 import React from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink, Filter, ChevronDown } from 'lucide-react';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -15,10 +15,11 @@ const formatCurrency = (value: number) => {
 import { fetchQuotes } from '../services/brapi';
 
 export const Dashboard = () => {
-  const { portfolio, equityHistory, updatePortfolioPrices, addHistoryEntry, customLists } = useInvestmentStore();
+  const { portfolio, equityHistory, updatePortfolioPrices, addHistoryEntry, customLists, assetCategories, addManualAsset, addAssetCategory, deleteManualAsset } = useInvestmentStore();
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [filterCategory, setFilterCategory] = React.useState('Todos');
   const [activeListIndex, setActiveListIndex] = React.useState(0);
+  const [isAddAssetModalOpen, setIsAddAssetModalOpen] = React.useState(false);
   
   const [compositionFilter, setCompositionFilter] = React.useState('Todos');
 
@@ -26,14 +27,14 @@ export const Dashboard = () => {
     if (!portfolio || isRefreshing) return;
     setIsRefreshing(true);
     try {
-      const portfolioTickers = [...portfolio.acoes, ...portfolio.fiis].map(a => a.Ticker);
+      const portfolioTickers = [...portfolio.acoes, ...portfolio.fiis, ...(portfolio.manualAssets || [])].map(a => a.Ticker).filter(Boolean);
       const listTickers = customLists.flatMap(l => l.items.map((i: any) => i.ticker));
       const allTickers = Array.from(new Set([...portfolioTickers, ...listTickers]));
 
       if (allTickers.length > 0) {
         const quotes = await fetchQuotes(allTickers, isManual);
         updatePortfolioPrices(quotes);
-        const newTotal = [...portfolio.acoes, ...portfolio.fiis, ...portfolio.tesouro, ...portfolio.renda_fixa]
+        const newTotal = [...portfolio.acoes, ...portfolio.fiis, ...portfolio.tesouro, ...portfolio.renda_fixa, ...(portfolio.manualAssets || [])]
           .reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
         addHistoryEntry(newTotal);
       }
@@ -59,7 +60,8 @@ export const Dashboard = () => {
     ...portfolio.acoes.map(a => ({ ...a, Categoria: 'Ações' })),
     ...portfolio.fiis.map(f => ({ ...f, Categoria: 'FIIs' })),
     ...portfolio.tesouro.map(t => ({ ...t, Ticker: t.Titulo, Categoria: 'Renda Fixa', Segmento: 'Tesouro Direto' })),
-    ...portfolio.renda_fixa.map(r => ({ ...r, Ticker: r.Ativo, Categoria: 'Renda Fixa', Segmento: 'Renda Fixa' }))
+    ...portfolio.renda_fixa.map(r => ({ ...r, Ticker: r.Ativo, Categoria: 'Renda Fixa', Segmento: 'Renda Fixa' })),
+    ...(portfolio.manualAssets || [])
   ];
 
   const filteredAssets = allAssets.filter(asset => {
@@ -71,6 +73,20 @@ export const Dashboard = () => {
     .sort((a, b) => b.Posicao - a.Posicao);
   
   const compositionTotal = compositionData.reduce((acc, curr) => acc + curr.Posicao, 0);
+  
+  const topCount = 8;
+  const pieData = compositionData.slice(0, topCount);
+  const othersData = compositionData.slice(topCount);
+  const othersTotal = othersData.reduce((acc, curr) => acc + curr.Posicao, 0);
+  
+  if (othersTotal > 0) {
+    pieData.push({
+      Ticker: 'Outros',
+      Posicao: othersTotal,
+      Categoria: 'Outros',
+      isOthers: true
+    } as any);
+  }
 
   const COLORS = [ '#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#6366F1' ];
 
@@ -84,12 +100,12 @@ export const Dashboard = () => {
           <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
           <p className="text-white/40">Sua jornada financeira em dados reais.</p>
         </div>
-        <div className="flex items-center gap-4 bg-white/5 p-1.5 rounded-2xl border border-white/10">
-          {['Todos', 'Ações', 'FIIs', 'Renda Fixa'].map((cat) => (
+        <div className="flex items-center gap-2 bg-white/5 p-1.5 rounded-2xl border border-white/10 overflow-x-auto no-scrollbar max-w-[500px]">
+          {['Todos', ...assetCategories].map((cat) => (
             <button
               key={cat}
               onClick={() => setFilterCategory(cat)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${filterCategory === cat ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/40 hover:text-white'}`}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${filterCategory === cat ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/40 hover:text-white'}`}
             >
               {cat}
             </button>
@@ -116,20 +132,11 @@ export const Dashboard = () => {
         <Card 
           title="Composição" 
           extra={
-            <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/5 scale-90 origin-right">
-              {['Todos', 'Ações', 'FIIs', 'RF'].map((cat) => {
-                const mapCat = cat === 'RF' ? 'Renda Fixa' : cat;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setCompositionFilter(mapCat)}
-                    className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase transition-all ${compositionFilter === mapCat ? 'bg-primary text-white' : 'text-white/20 hover:text-white/50'}`}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
+            <CompositionFilter 
+              categories={assetCategories} 
+              activeFilter={compositionFilter} 
+              onSelect={setCompositionFilter} 
+            />
           }
         >
           <div className="grid grid-cols-1 md:grid-cols-10 gap-4 h-[320px]">
@@ -137,7 +144,7 @@ export const Dashboard = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={compositionData.slice(0, 8)}
+                    data={pieData}
                     innerRadius={70}
                     outerRadius={100}
                     paddingAngle={3}
@@ -145,7 +152,7 @@ export const Dashboard = () => {
                     nameKey="Ticker"
                     stroke="none"
                   >
-                    {compositionData.map((_, index) => (
+                    {pieData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
@@ -169,7 +176,7 @@ export const Dashboard = () => {
             </div>
 
             <div className="md:col-span-4 overflow-y-auto no-scrollbar space-y-1.5 py-2">
-              {compositionData.slice(0, 10).map((asset, index) => {
+              {pieData.map((asset, index) => {
                 const percent = (asset.Posicao / compositionTotal) * 100;
                 return (
                   <div key={asset.Ticker} className="flex items-center justify-between p-1.5 rounded-lg bg-white/2 hover:bg-white/5 transition-all">
@@ -213,7 +220,19 @@ export const Dashboard = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card title="Ativos Detalhados">
+        <Card 
+          title="Ativos Detalhados"
+          reverseHeader
+          extra={
+            <button
+              onClick={() => setIsAddAssetModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl transition-all group"
+            >
+              <Plus size={16} className="group-hover:rotate-90 transition-transform" />
+              <span className="text-sm font-black uppercase tracking-tight">Adicionar Ativo</span>
+            </button>
+          }
+        >
           <div className="overflow-x-auto h-[500px] scrollbar-hide">
             <table className="w-full text-left">
               <thead>
@@ -224,6 +243,7 @@ export const Dashboard = () => {
                   <th className="py-4 px-2 font-black tracking-widest">P/VP</th>
                   <th className="py-4 px-2 font-black tracking-widest">DY</th>
                   <th className="py-4 px-2 font-black tracking-widest">Valor</th>
+                  <th className="py-4 px-2 font-black tracking-widest w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
@@ -260,6 +280,16 @@ export const Dashboard = () => {
                     <td className="py-4 px-2">
                       <div className="font-black text-white/90">{formatCurrency(asset.Posicao)}</div>
                       <div className="text-[12px] text-white/20 font-medium">{asset.Quantidade} un.</div>
+                    </td>
+                    <td className="py-4 px-2">
+                      {(asset as any).id && (
+                        <button 
+                          onClick={() => deleteManualAsset((asset as any).id)}
+                          className="text-white/5 hover:text-red-500 transition-colors p-1"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -321,6 +351,210 @@ export const Dashboard = () => {
           </div>
         </Card>
       </div>
+
+      <AddAssetModal 
+        isOpen={isAddAssetModalOpen} 
+        onClose={() => setIsAddAssetModalOpen(false)}
+        onAdd={(asset: any) => {
+          addManualAsset(asset);
+          setIsAddAssetModalOpen(false);
+        }}
+        categories={assetCategories}
+        onAddCategory={addAssetCategory}
+      />
+    </div>
+  );
+};
+
+const AddAssetModal = ({ isOpen, onClose, onAdd, categories, onAddCategory }: any) => {
+  const [ticker, setTicker] = React.useState('');
+  const [category, setCategory] = React.useState(categories[0] || '');
+  const [quantity, setQuantity] = React.useState('');
+  const [averagePrice, setAveragePrice] = React.useState('');
+  const [isAddingCategory, setIsAddingCategory] = React.useState(false);
+  const [newCategory, setNewCategory] = React.useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onAdd({
+      ticker,
+      category,
+      quantity: Number(quantity),
+      averagePrice: Number(averagePrice)
+    });
+    setTicker('');
+    setQuantity('');
+    setAveragePrice('');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-card border border-white/10 w-full max-w-md rounded-[32px] p-8 shadow-2xl relative animate-in zoom-in-95 duration-200">
+        <button onClick={onClose} className="absolute top-6 right-6 text-white/20 hover:text-white transition-colors">
+          <X size={24} />
+        </button>
+
+        <h3 className="text-2xl font-black text-white mb-6 tracking-tight">Adicionar Ativo</h3>
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[12px] font-black text-white/20 uppercase tracking-widest pl-1">Ticker / Nome</label>
+            <input
+              autoFocus
+              required
+              type="text"
+              placeholder="Ex: PETR4 ou Tesouro IPCA"
+              className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-primary/50 transition-all font-bold"
+              value={ticker}
+              onChange={(e) => setTicker(e.target.value.toUpperCase())}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[12px] font-black text-white/20 uppercase tracking-widest pl-1">Categoria</label>
+            {!isAddingCategory ? (
+              <div className="flex gap-2">
+                <select
+                  required
+                  className="flex-1 bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-primary/50 transition-all font-bold appearance-none"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  {categories.map((cat: string) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingCategory(true)}
+                  className="p-4 bg-white/5 border border-white/10 rounded-2xl text-white/40 hover:text-white transition-all"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2 animate-in slide-in-from-right-2 duration-200">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Nova Categoria"
+                  className="flex-1 bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-primary/50 transition-all font-bold"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (newCategory) {
+                        onAddCategory(newCategory);
+                        setCategory(newCategory);
+                        setIsAddingCategory(false);
+                        setNewCategory('');
+                      }
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newCategory) {
+                      onAddCategory(newCategory);
+                      setCategory(newCategory);
+                      setIsAddingCategory(false);
+                      setNewCategory('');
+                    } else {
+                      setIsAddingCategory(false);
+                    }
+                  }}
+                  className="px-4 bg-primary text-white rounded-2xl font-black text-xs uppercase"
+                >
+                  Salvar
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-[12px] font-black text-white/20 uppercase tracking-widest pl-1">Quantidade</label>
+              <input
+                required
+                type="number"
+                step="any"
+                placeholder="0.00"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-primary/50 transition-all font-bold"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[12px] font-black text-white/20 uppercase tracking-widest pl-1">Preço Médio</label>
+              <input
+                required
+                type="number"
+                step="0.01"
+                placeholder="R$ 0,00"
+                className="w-full bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-primary/50 transition-all font-bold"
+                value={averagePrice}
+                onChange={(e) => setAveragePrice(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-primary hover:bg-primary-hover text-white font-black py-5 rounded-[20px] shadow-xl shadow-primary/20 transition-all uppercase tracking-widest mt-4"
+          >
+            Adicionar à Carteira
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const CompositionFilter = ({ categories, activeFilter, onSelect }: any) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-1.5 bg-black/20 border border-white/5 rounded-xl hover:border-primary/30 transition-all group scale-90 origin-right"
+      >
+        <Filter size={12} className="text-white/20 group-hover:text-primary transition-colors" />
+        <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{activeFilter}</span>
+        <ChevronDown size={12} className={`text-white/20 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full right-0 mt-2 min-w-[140px] bg-[#0a0a0a] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-[50] animate-in fade-in zoom-in-95 duration-200">
+          {['Todos', ...categories].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => {
+                onSelect(cat);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold transition-all ${activeFilter === cat ? 'bg-primary text-white' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -341,9 +575,9 @@ const MetricCard = ({ title, value, icon, trend }: any) => (
   </div>
 );
 
-const Card = ({ title, icon, children, extra }: any) => (
+const Card = ({ title, icon, children, extra, reverseHeader }: any) => (
   <div className="bg-card border border-white/10 rounded-[32px] p-6 h-full flex flex-col shadow-2xl relative">
-    <div className="flex justify-between items-center mb-6">
+    <div className={`flex justify-between items-center mb-6 ${reverseHeader ? 'flex-row-reverse' : ''}`}>
       <div className="flex items-center gap-3">
         {icon && <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center">{icon}</div>}
         <h3 className="text-lg font-black tracking-tight text-white/90">{title}</h3>

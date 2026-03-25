@@ -6,6 +6,7 @@ interface PortfolioData {
   acoes: any[]
   tesouro: any[]
   renda_fixa: any[]
+  manualAssets: any[]
   dividendos: any[]
   total_live: number
   resumo: {
@@ -58,10 +59,14 @@ interface InvestmentStore {
   addTickerToList: (listId: string, ticker: string) => void
   removeTickerFromList: (listId: string, ticker: string) => void
   addHistoryEntry: (total: number) => void
+  addManualAsset: (asset: { ticker: string; category: string; quantity: number; averagePrice: number }) => void
+  deleteManualAsset: (id: string) => void
+  addAssetCategory: (category: string) => void
   updatePortfolioPrices: (quotes: any[]) => void
   loadBackup: (data: any) => void
   setMonthlyPlan: (plan: MonthlyPlan) => void
   monthlyPlan: MonthlyPlan
+  assetCategories: string[]
   contributionAmount: number
   setContributionAmount: (amount: number) => void
 }
@@ -82,6 +87,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
         expenses: [],
         categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
       },
+      assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
       contributionAmount: 1000,
 
       setPortfolio: (portfolio) => set({ portfolio }),
@@ -116,6 +122,61 @@ export const useInvestmentStore = create<InvestmentStore>()(
         const newHistory = [...state.equityHistory.filter(h => h.date !== date), { date, total }];
         return { equityHistory: newHistory.sort((a, b) => a.date.localeCompare(b.date)).slice(-12) };
       }),
+      addManualAsset: (asset) => set((state) => {
+        if (!state.portfolio) return state;
+        const newAsset = {
+          id: crypto.randomUUID(),
+          Ticker: asset.ticker.toUpperCase(),
+          Categoria: asset.category,
+          Quantidade: asset.quantity,
+          PrecoMedio: asset.averagePrice,
+          Cotacao: asset.averagePrice, // Default to average price until updated
+          Posicao: asset.quantity * asset.averagePrice,
+          Segmento: asset.category,
+        };
+        const newManualAssets = [...(state.portfolio.manualAssets || []), newAsset];
+        const newTotalLive = [...state.portfolio.acoes, ...state.portfolio.fiis, ...state.portfolio.tesouro, ...state.portfolio.renda_fixa, ...newManualAssets]
+          .reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
+          
+        const manualInvested = newManualAssets.reduce((acc, curr) => acc + (curr.Quantidade * curr.PrecoMedio), 0);
+        const originalInvested = state.portfolio.resumo?.total_investido || 0;
+        
+        return {
+          portfolio: {
+            ...state.portfolio,
+            manualAssets: newManualAssets,
+            total_live: newTotalLive,
+            resumo: {
+              ...state.portfolio.resumo,
+              total_investido: originalInvested + (newAsset.Quantidade * newAsset.PrecoMedio)
+            }
+          }
+        };
+      }),
+      deleteManualAsset: (id) => set((state) => {
+        if (!state.portfolio) return state;
+        const assetToRemove = (state.portfolio.manualAssets || []).find((a: any) => a.id === id);
+        const newManualAssets = (state.portfolio.manualAssets || []).filter((a: any) => a.id !== id);
+        const newTotalLive = [...state.portfolio.acoes, ...state.portfolio.fiis, ...state.portfolio.tesouro, ...state.portfolio.renda_fixa, ...newManualAssets]
+          .reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
+
+        const deduction = assetToRemove ? (assetToRemove.Quantidade * assetToRemove.PrecoMedio) : 0;
+
+        return {
+          portfolio: {
+            ...state.portfolio,
+            manualAssets: newManualAssets,
+            total_live: newTotalLive,
+            resumo: {
+              ...state.portfolio.resumo,
+              total_investido: (state.portfolio.resumo?.total_investido || 0) - deduction
+            }
+          }
+        };
+      }),
+      addAssetCategory: (category) => set((state) => ({
+        assetCategories: Array.from(new Set([...state.assetCategories, category]))
+      })),
       updatePortfolioPrices: (quotes) => set((state) => {
         if (!state.portfolio) return state;
 
@@ -138,8 +199,9 @@ export const useInvestmentStore = create<InvestmentStore>()(
 
         const newAcoes = updateSection(state.portfolio.acoes);
         const newFiis = updateSection(state.portfolio.fiis);
+        const newManual = updateSection(state.portfolio.manualAssets || []);
         
-        const newTotalLive = [...newAcoes, ...newFiis, ...state.portfolio.tesouro, ...state.portfolio.renda_fixa]
+        const newTotalLive = [...newAcoes, ...newFiis, ...state.portfolio.tesouro, ...state.portfolio.renda_fixa, ...newManual]
           .reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
 
         const newCustomLists = state.customLists.map(list => ({
@@ -165,6 +227,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
             ...state.portfolio,
             acoes: newAcoes,
             fiis: newFiis,
+            manualAssets: newManual,
             total_live: newTotalLive,
           },
           customLists: newCustomLists
@@ -177,6 +240,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
         customLists: data.customLists || [],
         equityHistory: data.equityHistory || [],
         monthlyPlan: data.monthlyPlan || { incomes: [], expenses: [], categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros'] },
+        assetCategories: data.assetCategories || ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
         contributionAmount: data.contributionAmount || 1000,
       }),
       setMonthlyPlan: (monthlyPlan) => set({ monthlyPlan }),
