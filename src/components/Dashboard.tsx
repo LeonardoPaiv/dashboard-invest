@@ -17,7 +17,6 @@ import { fetchQuotes } from '../services/brapi';
 export const Dashboard = () => {
   const { portfolio, equityHistory, updatePortfolioPrices, addHistoryEntry, customLists, assetCategories, addManualAsset, addAssetCategory, deleteManualAsset, importConfig } = useInvestmentStore();
   const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [filterCategory, setFilterCategory] = React.useState('Todos');
   const [activeListIndex, setActiveListIndex] = React.useState(0);
   const [isAddAssetModalOpen, setIsAddAssetModalOpen] = React.useState(false);
   
@@ -139,12 +138,6 @@ export const Dashboard = () => {
           <p className="text-white/40">Sua jornada financeira em dados reais.</p>
         </div>
         <div className="flex items-center gap-3">
-          <CategoryFilter 
-            categories={dashboardCategories} 
-            activeCategory={filterCategory} 
-            onSelect={setFilterCategory} 
-          />
-          <div className="w-px h-8 bg-white/10" />
           <button 
             onClick={() => handleRefresh(false, true)}
             title="Atualizar Cotações"

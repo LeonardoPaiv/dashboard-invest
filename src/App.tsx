@@ -6,7 +6,7 @@ import { Projection } from './components/Projection'
 import { PlanoMensal } from './components/PlanoMensal.tsx' 
 import { ImportSettings } from './components/ImportSettings'
 import { AveragePrice } from './components/AveragePrice'
-import { TaxModule } from './components/TaxModule'
+import { TaxModule } from './components/TaxModule.tsx'
 
 function App() {
   const { activeTab, setActiveTab } = useInvestmentStore();
