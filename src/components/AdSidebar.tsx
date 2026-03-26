@@ -16,23 +16,18 @@ export const AdSidebar: React.FC = () => {
   }, []);
 
   return (
-    <aside className="w-[160px] hidden xl:flex flex-col border-l border-white/5 bg-black/20 p-4 gap-4 overflow-y-auto">
-      <div className="text-[10px] uppercase font-bold text-white/20 text-center tracking-wider mb-2">
-        Anúncios
+    <aside className="w-[160px] hidden xl:flex flex-col border-l border-white/5 bg-black/20 overflow-y-auto">
+      <div className="text-[10px] uppercase font-bold text-white/20 text-center tracking-wider py-4 border-b border-white/5 bg-white/[0.02]">
+        Publicidade
       </div>
       
-      {/* Google Ads Unit */}
-      <ins className="adsbygoogle"
-           style={{ display: 'block' }}
-           data-ad-client="ca-pub-2860097082185976"
-           data-ad-slot="2558607577"
-           data-ad-format="auto"
-           data-full-width-responsive="true">
-      </ins>
-
-      {/* Placeholder for visual consistency while ad loads */}
-      <div className="w-full h-screen max-h-[600px] flex items-center justify-center border border-white/5 rounded-lg bg-white/[0.02]">
-         <span className="text-[10px] text-white/10 rotate-90 whitespace-nowrap">Propaganda</span>
+      {/* Vertical Ad Unit */}
+      <div className="flex justify-center p-0">
+        <ins className="adsbygoogle"
+             style={{ display: 'inline-block', width: '160px', height: '1000px' }}
+             data-ad-client="ca-pub-2860097082185976"
+             data-ad-slot="7849603497">
+        </ins>
       </div>
     </aside>
   );
