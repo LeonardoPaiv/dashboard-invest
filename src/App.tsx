@@ -8,7 +8,7 @@ import { ImportSettings } from './components/ImportSettings'
 import { AveragePrice } from './components/AveragePrice'
 import { TaxModule } from './components/TaxModule.tsx'
 
-import { AdSidebar } from './components/AdSidebar'
+// import { AdSidebar } from './components/AdSidebar'
 
 function App() {
   const { activeTab, setActiveTab } = useInvestmentStore();
@@ -35,7 +35,7 @@ function App() {
       </main>
 
       {/* Google Ads Sidebar */}
-      <AdSidebar />
+      {/* <AdSidebar /> */}
     </div>
   )
 }
