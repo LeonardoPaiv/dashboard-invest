@@ -322,6 +322,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
         snapshots: data.snapshots || [],
         customLists: data.customLists || [],
         equityHistory: data.equityHistory || [],
+        monthlySnapshots: data.monthlySnapshots || [],
         monthlyPlan: data.monthlyPlan || { incomes: [], expenses: [], categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros'] },
         assetCategories: data.assetCategories || ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
         contributionAmount: data.contributionAmount || 1000,
@@ -400,6 +401,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
         snapshots: [],
         customLists: [],
         equityHistory: [],
+        monthlySnapshots: [],
         historicalTransactions: [],
         monthlyPlan: {
           incomes: [],

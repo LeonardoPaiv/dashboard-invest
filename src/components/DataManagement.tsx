@@ -11,7 +11,7 @@ export const DataManagement = () => {
   useEffect(() => {
     const { 
       portfolio, settings, snapshots, customLists, 
-      equityHistory, monthlyPlan, assetCategories, 
+      equityHistory, monthlySnapshots, monthlyPlan, assetCategories, 
       contributionAmount, importConfig, historicalTransactions 
     } = store;
     
@@ -21,17 +21,18 @@ export const DataManagement = () => {
       snapshots,
       customLists,
       equityHistory,
+      monthlySnapshots,
       monthlyPlan,
       assetCategories,
       contributionAmount,
       importConfig,
       historicalTransactions,
-      version: '1.0',
+      version: '1.1',
       exportDate: new Date().toISOString()
     };
     
     setJsonContent(JSON.stringify(data, null, 2));
-  }, []);
+  }, [store]);
 
   const handleSaveJson = () => {
     try {
@@ -89,10 +90,40 @@ export const DataManagement = () => {
   const handleClearAll = () => {
     if (confirm("ATENÇÃO: Isso irá DELETAR PERMANENTEMENTE todos os seus dados (portfólio, metas, histórico, etc). Esta ação não pode ser desfeita. Tem certeza?")) {
       store.clearAllData();
-      setJsonContent(JSON.stringify(store, null, 2)); // Re-update UI
+      
+      const emptyData = {
+        portfolio: null,
+        settings: { estrategia: '', alvos: { fiis: 33.3, acoes: 33.3, renda_fixa: 33.4 } },
+        snapshots: [],
+        customLists: [],
+        equityHistory: [],
+        monthlySnapshots: [],
+        monthlyPlan: {
+          incomes: [],
+          expenses: [],
+          categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
+        },
+        assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
+        contributionAmount: 1000,
+        importConfig: {
+          sections: [
+            { id: 'fiis', name: 'Fundos Imobiliários', trigger: 'Fundos Listados', type: 'fiis', mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 } },
+            { id: 'acoes', name: 'Ações', trigger: 'Renda Variável Brasil', type: 'acoes', mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 } },
+            { id: 'tesouro', name: 'Tesouro Direto', trigger: 'Tesouro Direto', type: 'tesouro', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 } },
+            { id: 'renda_fixa', name: 'Renda Fixa', trigger: 'Renda Fixa', type: 'renda_fixa', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 } }
+          ]
+        },
+        historicalTransactions: [],
+        version: '1.1',
+        exportDate: new Date().toISOString()
+      };
+      
+      setJsonContent(JSON.stringify(emptyData, null, 2));
       setStatus({ type: 'success', message: 'Todos os dados foram excluídos.' });
-      setTimeout(() => setStatus({ type: null, message: '' }), 3000);
-      window.location.reload(); // Force reload to ensure everything is reset properly
+      setTimeout(() => {
+        setStatus({ type: null, message: '' });
+        window.location.reload(); // Force reload after status message
+      }, 1000);
     }
   };
 
