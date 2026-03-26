@@ -1,4 +1,4 @@
-import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Settings, Calculator } from 'lucide-react';
+import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Settings, Calculator, Database } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { parseInvestmentExcel } from '../utils/parser';
 import logo from '../assets/logo.png';
@@ -132,6 +132,12 @@ export const Sidebar = () => {
           label="Importação" 
           active={activeTab === 'settings'} 
           onClick={() => setActiveTab('settings')} 
+        />
+        <NavItem 
+          icon={<Database size={20}/>} 
+          label="Menu de Dados" 
+          active={activeTab === 'data-management'} 
+          onClick={() => setActiveTab('data-management')} 
         />
       </nav>
 

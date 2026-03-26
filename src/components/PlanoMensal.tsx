@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Plus, Trash2, PieChart as PieChartIcon, ArrowUpCircle, ArrowDownCircle, ChevronDown, Check, Wallet } from 'lucide-react';
+import { Plus, Trash2, PieChart as PieChartIcon, ArrowUpCircle, ArrowDownCircle, ChevronDown, Check, Wallet, Camera, History as HistoryIcon, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { useInvestmentStore, MonthlyItem } from '../store/useInvestmentStore';
@@ -13,7 +13,8 @@ function cn(...inputs: ClassValue[]) {
 const COLORS = ['#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#6366f1', '#a855f7', '#06b6d4'];
 
 export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void }) => {
-  const { monthlyPlan, setMonthlyPlan, setContributionAmount } = useInvestmentStore();
+  const { monthlyPlan, setMonthlyPlan, setContributionAmount, addMonthlySnapshot } = useInvestmentStore();
+  const [showSnapshotDialog, setShowSnapshotDialog] = useState(false);
   const [newItem, setNewItem] = useState<{ name: string; value: string; type: 'income' | 'expense'; category: string }>({
     name: '',
     value: '',
@@ -87,14 +88,51 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
     });
   };
 
+  const handleCreateSnapshot = (resetExpenses: boolean) => {
+    const today = new Date();
+    const monthYear = `${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`;
+    
+    addMonthlySnapshot({
+      id: crypto.randomUUID(),
+      date: monthYear,
+      incomes: [...monthlyPlan.incomes],
+      expenses: [...monthlyPlan.expenses],
+      totalIncome: totalIncomes,
+      totalExpense: totalExpenses,
+      savings: balance
+    }, resetExpenses);
+    
+    setShowSnapshotDialog(false);
+  };
+
   return (
-    <div className="p-8 h-full flex flex-col gap-8 overflow-hidden box-border">
-      <header className="flex flex-col gap-2 shrink-0">
-        <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
-          <Wallet className="text-primary" size={32} />
-          PLANO MENSAL
-        </h1>
-        <p className="text-white/40 font-medium">Gerencie seus recebimentos e gastos mensais para otimizar seus aportes.</p>
+    <div className="p-8 h-full flex flex-col gap-8 overflow-hidden box-border bg-background relative">
+      <header className="flex flex-col gap-2 shrink-0 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
+            <Wallet className="text-primary" size={32} />
+            PLANO MENSAL
+          </h1>
+          <p className="text-white/40 font-medium">Gerencie seus recebimentos e gastos mensais para otimizar seus aportes.</p>
+        </div>
+
+        <div className="flex items-center gap-3 mt-4 lg:mt-0">
+          <button 
+            onClick={() => setActiveTab('history')}
+            className="flex items-center gap-2 px-6 py-3 bg-white/5 border border-white/10 rounded-2xl text-white/60 font-black uppercase tracking-widest text-xs hover:bg-white/10 hover:text-white transition-all shadow-lg shadow-black/20"
+          >
+            <HistoryIcon size={18} />
+            Ver Histórico
+          </button>
+          
+          <button 
+            onClick={() => setShowSnapshotDialog(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-primary text-white font-black uppercase tracking-widest text-xs rounded-2xl hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95"
+          >
+            <Camera size={18} />
+            Gerar Snapshot
+          </button>
+        </div>
       </header>
 
       <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
@@ -411,6 +449,75 @@ export const PlanoMensal = ({ setActiveTab }: { setActiveTab: (tab: any) => void
           </section>
         </div>
       </div>
+
+      {/* Snapshot Dialog Modal */}
+      <AnimatePresence>
+        {showSnapshotDialog && (
+          <>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/60 backdrop-blur-md z-[100]"
+              onClick={() => setShowSnapshotDialog(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] bg-card border border-white/10 rounded-[32px] p-10 z-[101] flex flex-col gap-8 shadow-2xl shadow-primary/10"
+            >
+              <div className="flex items-start justify-between">
+                  <div className="flex flex-col gap-2">
+                    <div className="p-4 bg-primary/10 w-fit rounded-2xl">
+                        <Camera size={32} className="text-primary" />
+                    </div>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter">Gerar Snapshot Mensal</h3>
+                    <p className="text-white/40 font-medium">Como você deseja lidar com os gastos para o próximo mês?</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowSnapshotDialog(false)}
+                    className="p-2 text-white/20 hover:text-white transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                  <button 
+                    onClick={() => handleCreateSnapshot(true)}
+                    className="p-6 bg-white/5 border border-white/10 rounded-3xl flex flex-col gap-4 text-center items-center hover:bg-primary/10 hover:border-primary/30 transition-all group"
+                  >
+                     <div className="p-3 bg-white/5 rounded-xl group-hover:bg-primary/20 transition-all">
+                        <Trash2 size={24} className="text-white/40 group-hover:text-primary" />
+                     </div>
+                     <div className="flex flex-col gap-1">
+                        <span className="font-black uppercase tracking-widest text-xs">Zerar Gastos</span>
+                        <span className="text-[10px] text-white/20 font-medium leading-relaxed">Limpa todos os valores de despesas para o novo mês.</span>
+                     </div>
+                  </button>
+
+                  <button 
+                    onClick={() => handleCreateSnapshot(false)}
+                    className="p-6 bg-white/5 border border-white/10 rounded-3xl flex flex-col gap-4 text-center items-center hover:bg-emerald-500/10 hover:border-emerald-500/30 transition-all group"
+                  >
+                     <div className="p-3 bg-white/5 rounded-xl group-hover:bg-emerald-500/20 transition-all">
+                        <Check size={24} className="text-white/40 group-hover:text-emerald-500" />
+                     </div>
+                     <div className="flex flex-col gap-1">
+                        <span className="font-black uppercase tracking-widest text-xs">Manter Gastos</span>
+                        <span className="text-[10px] text-white/20 font-medium leading-relaxed">Mantém as despesas atuais para acompanhamento contínuo.</span>
+                     </div>
+                  </button>
+              </div>
+
+              <div className="p-4 bg-primary/5 border border-primary/10 rounded-2xl text-[10px] text-primary/60 font-bold uppercase tracking-widest text-center">
+                 DICA: Use snapshots para arquivar o fechamento do seu mês financeiro.
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

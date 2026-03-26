@@ -65,6 +65,16 @@ export interface MonthlyPlan {
   categories: string[]
 }
 
+export interface MonthlySnapshot {
+  id: string
+  date: string // ISO date or "MM/YYYY"
+  incomes: MonthlyItem[]
+  expenses: MonthlyItem[]
+  totalIncome: number
+  totalExpense: number
+  savings: number
+}
+
 interface InvestmentStore {
   portfolio: PortfolioData | null
   settings: {
@@ -74,6 +84,7 @@ interface InvestmentStore {
   snapshots: Snapshot[]
   customLists: any[]
   equityHistory: { date: string; total: number }[]
+  monthlySnapshots: MonthlySnapshot[]
   
   setPortfolio: (data: PortfolioData) => void
   setSettings: (settings: any) => void
@@ -97,11 +108,14 @@ interface InvestmentStore {
   setContributionAmount: (amount: number) => void
   importConfig: ImportConfig
   setImportConfig: (config: ImportConfig) => void
+  addMonthlySnapshot: (snapshot: MonthlySnapshot, resetExpenses: boolean) => void
+  deleteMonthlySnapshot: (id: string) => void
   updateAsset: (type: string, ticker: string, updates: any) => void
   historicalTransactions: any[]
   setHistoricalTransactions: (transactions: any[]) => void
   activeTab: string
   setActiveTab: (tab: string) => void
+  clearAllData: () => void
 }
 
 export const useInvestmentStore = create<InvestmentStore>()(
@@ -115,6 +129,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
       snapshots: [],
       customLists: [],
       equityHistory: [],
+      monthlySnapshots: [],
       historicalTransactions: [],
       setHistoricalTransactions: (historicalTransactions) => set({ historicalTransactions }),
       activeTab: 'dashboard',
@@ -310,10 +325,32 @@ export const useInvestmentStore = create<InvestmentStore>()(
         monthlyPlan: data.monthlyPlan || { incomes: [], expenses: [], categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros'] },
         assetCategories: data.assetCategories || ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
         contributionAmount: data.contributionAmount || 1000,
+        importConfig: data.importConfig || {
+          sections: [
+            { id: 'fiis', name: 'Fundos Imobiliários', trigger: 'Fundos Listados', type: 'fiis', mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 } },
+            { id: 'acoes', name: 'Ações', trigger: 'Renda Variável Brasil', type: 'acoes', mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 } },
+            { id: 'tesouro', name: 'Tesouro Direto', trigger: 'Tesouro Direto', type: 'tesouro', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 } },
+            { id: 'renda_fixa', name: 'Renda Fixa', trigger: 'Renda Fixa', type: 'renda_fixa', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 } }
+          ]
+        },
+        historicalTransactions: data.historicalTransactions || [],
       }),
       setMonthlyPlan: (monthlyPlan) => set({ monthlyPlan }),
-      setContributionAmount: (contributionAmount) => set({ contributionAmount }),
+      setContributionAmount: (amount: number) => set({ contributionAmount: amount }),
       setImportConfig: (importConfig) => set({ importConfig }),
+      addMonthlySnapshot: (snapshot, resetExpenses) => set((state) => {
+        const nextMonthlyPlan = resetExpenses 
+          ? { ...state.monthlyPlan, expenses: [] }
+          : state.monthlyPlan;
+          
+        return {
+          monthlySnapshots: [snapshot, ...state.monthlySnapshots],
+          monthlyPlan: nextMonthlyPlan
+        };
+      }),
+      deleteMonthlySnapshot: (id) => set((state) => ({
+        monthlySnapshots: state.monthlySnapshots.filter(s => s.id !== id)
+      })),
       updateAsset: (type, identifier, updates) => set((state) => {
         if (!state.portfolio) return state;
         
@@ -356,6 +393,29 @@ export const useInvestmentStore = create<InvestmentStore>()(
             }
           }
         };
+      }),
+      clearAllData: () => set({
+        portfolio: null,
+        settings: { estrategia: '', alvos: { fiis: 33.3, acoes: 33.3, renda_fixa: 33.4 } },
+        snapshots: [],
+        customLists: [],
+        equityHistory: [],
+        historicalTransactions: [],
+        monthlyPlan: {
+          incomes: [],
+          expenses: [],
+          categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
+        },
+        assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
+        contributionAmount: 1000,
+        importConfig: {
+          sections: [
+            { id: 'fiis', name: 'Fundos Imobiliários', trigger: 'Fundos Listados', type: 'fiis', mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 } },
+            { id: 'acoes', name: 'Ações', trigger: 'Renda Variável Brasil', type: 'acoes', mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 } },
+            { id: 'tesouro', name: 'Tesouro Direto', trigger: 'Tesouro Direto', type: 'tesouro', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 } },
+            { id: 'renda_fixa', name: 'Renda Fixa', trigger: 'Renda Fixa', type: 'renda_fixa', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 } }
+          ]
+        }
       }),
     }),
     {

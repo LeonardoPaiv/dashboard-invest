@@ -7,6 +7,8 @@ import { PlanoMensal } from './components/PlanoMensal.tsx'
 import { ImportSettings } from './components/ImportSettings'
 import { AveragePrice } from './components/AveragePrice'
 import { TaxModule } from './components/TaxModule.tsx'
+import { DataManagement } from './components/DataManagement.tsx'
+import { History } from './components/History'
 import ErrorBoundary from './components/ErrorBoundary'
 
 // import { AdSidebar } from './components/AdSidebar'
@@ -30,9 +32,8 @@ function App() {
           {activeTab === 'settings' && <ImportSettings />}
           {activeTab === 'preco-medio' && <AveragePrice />}
           {activeTab === 'imposto-renda' && <TaxModule />}
-          {activeTab === 'history' && (
-            <div className="p-8 text-center text-white/40">Funcionalidade de histórico será implementada em breve.</div>
-          )}
+          {activeTab === 'data-management' && <DataManagement />}
+          {activeTab === 'history' && <History />}
         </div>
       </main>
 
