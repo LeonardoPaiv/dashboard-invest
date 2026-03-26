@@ -8,16 +8,18 @@ import { ImportSettings } from './components/ImportSettings'
 import { AveragePrice } from './components/AveragePrice'
 import { TaxModule } from './components/TaxModule.tsx'
 
+import { AdSidebar } from './components/AdSidebar'
+
 function App() {
   const { activeTab, setActiveTab } = useInvestmentStore();
 
   return (
-    <div className="flex min-h-screen bg-background text-white font-sans selection:bg-primary/30 selection:text-primary">
+    <div className="flex h-screen bg-background text-white font-sans selection:bg-primary/30 selection:text-primary overflow-hidden">
       {/* Sidebar - Fixa */}
       <Sidebar />
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 bg-black/10">
         <div className="flex-1 overflow-hidden flex flex-col">
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'strategy' && <Strategy />}
@@ -31,6 +33,9 @@ function App() {
           )}
         </div>
       </main>
+
+      {/* Google Ads Sidebar */}
+      <AdSidebar />
     </div>
   )
 }
