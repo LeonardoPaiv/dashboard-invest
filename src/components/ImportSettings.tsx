@@ -157,12 +157,12 @@ export const ImportSettings = () => {
                     <select 
                       value={section.type}
                       onChange={(e) => handleUpdateSection(section.id, { type: e.target.value as any })}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-all"
+                      className="w-full bg-[#1a1c1e] border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-all text-white"
                     >
-                      <option value="acoes">Ações</option>
-                      <option value="fiis">FIIs</option>
-                      <option value="tesouro">Tesouro Direto</option>
-                      <option value="renda_fixa">Renda Fixa</option>
+                      <option value="acoes" className="bg-[#1a1c1e] text-white">Ações</option>
+                      <option value="fiis" className="bg-[#1a1c1e] text-white">FIIs</option>
+                      <option value="tesouro" className="bg-[#1a1c1e] text-white">Tesouro Direto</option>
+                      <option value="renda_fixa" className="bg-[#1a1c1e] text-white">Renda Fixa</option>
                     </select>
                   </div>
                 </div>
@@ -216,10 +216,10 @@ export const ImportSettings = () => {
               <select 
                 value={currentSheet}
                 onChange={(e) => handleSheetChange(e.target.value)}
-                className="bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs font-bold focus:outline-none focus:border-primary transition-all"
+                className="bg-[#1a1c1e] border border-white/10 rounded-lg px-3 py-1 text-xs font-bold focus:outline-none focus:border-primary transition-all text-white"
               >
                 {sheetNames.map(name => (
-                  <option key={name} value={name}>{name}</option>
+                  <option key={name} value={name} className="bg-[#1a1c1e] text-white">{name}</option>
                 ))}
               </select>
             )}

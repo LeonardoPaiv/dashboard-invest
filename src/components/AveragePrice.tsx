@@ -201,7 +201,13 @@ export const AveragePrice = () => {
       return;
     }
 
-    const all = [...newPortfolio.acoes, ...newPortfolio.fiis, ...newPortfolio.tesouro, ...newPortfolio.renda_fixa, ...(newPortfolio.manualAssets || [])];
+    const all = [
+      ...(newPortfolio?.acoes || []), 
+      ...(newPortfolio?.fiis || []), 
+      ...(newPortfolio?.tesouro || []), 
+      ...(newPortfolio?.renda_fixa || []), 
+      ...(newPortfolio?.manualAssets || [])
+    ];
     newPortfolio.resumo = {
       ...newPortfolio.resumo,
       total_investido: all.reduce((acc, curr) => acc + ((curr.PrecoMedio || 0) * (curr.Quantidade || 0)), 0)

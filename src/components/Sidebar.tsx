@@ -11,6 +11,16 @@ export const Sidebar = () => {
     if (file) {
       try {
         const data = await parseInvestmentExcel(file, importConfig);
+        
+        // Verifica se algum dado foi realmente importado
+        const totalAssets = data.fiis.length + data.acoes.length + data.tesouro.length + data.renda_fixa.length;
+        
+        if (totalAssets === 0) {
+          alert("Nenhum dado de investimento foi encontrado no arquivo. Verifique se os 'Textos Gatilhos' (Triggers) estão configurados corretamente na aba de Importação.");
+          e.target.value = '';
+          return;
+        }
+
         // Calculate total_live
         const total_live = [...data.fiis, ...data.acoes, ...data.tesouro, ...data.renda_fixa]
           .reduce((acc, curr) => acc + (curr.Posicao || 0), 0);

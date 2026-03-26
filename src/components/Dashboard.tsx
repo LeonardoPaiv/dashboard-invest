@@ -21,15 +21,19 @@ export const Dashboard = () => {
   const [isAddAssetModalOpen, setIsAddAssetModalOpen] = React.useState(false);
   
   const [compositionFilter, setCompositionFilter] = React.useState('Todos');
+  const [activeDetailedTab, setActiveDetailedTab] = React.useState<'acoes' | 'fiis' | 'tesouro' | 'renda_fixa'>('acoes');
+  const [editingPM, setEditingPM] = React.useState<{type: string, id: string} | null>(null);
+  const [editValue, setEditValue] = React.useState('');
+  const { updateAsset } = useInvestmentStore();
 
   const handleRefresh = React.useCallback(async (silent = false, isManual = false) => {
     if (!portfolio || isRefreshing) return;
     setIsRefreshing(true);
     try {
       const portfolioTickers = [
-        ...portfolio.acoes, 
-        ...portfolio.fiis, 
-        ...(portfolio.manualAssets || [])
+        ...(portfolio?.acoes || []), 
+        ...(portfolio?.fiis || []), 
+        ...(portfolio?.manualAssets || [])
       ].map(a => a.Ticker).filter(Boolean);
       
       const listTickers = (customLists || []).flatMap(l => l.items.map((i: any) => i.ticker));
@@ -40,11 +44,11 @@ export const Dashboard = () => {
         if (quotes && quotes.length > 0) {
           updatePortfolioPrices(quotes);
           const newTotal = [
-            ...portfolio.acoes, 
-            ...portfolio.fiis, 
-            ...portfolio.tesouro, 
-            ...portfolio.renda_fixa, 
-            ...(portfolio.manualAssets || [])
+            ...(portfolio?.acoes || []), 
+            ...(portfolio?.fiis || []), 
+            ...(portfolio?.tesouro || []), 
+            ...(portfolio?.renda_fixa || []), 
+            ...(portfolio?.manualAssets || [])
           ].reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
           addHistoryEntry(newTotal);
         }
@@ -74,11 +78,11 @@ export const Dashboard = () => {
   if (!portfolio) return <div className="p-10 text-center text-white/40">Faça upload da carteira primeiro.</div>;
 
   const allAssets = [
-    ...portfolio.acoes.map(a => ({ ...a, Categoria: a.SectionName || 'Ações', SectionType: a.SectionType || 'acoes' })),
-    ...portfolio.fiis.map(f => ({ ...f, Categoria: f.SectionName || 'FIIs', SectionType: f.SectionType || 'fiis' })),
-    ...portfolio.tesouro.map(t => ({ ...t, Ticker: t.Ticker || t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
-    ...portfolio.renda_fixa.map(r => ({ ...r, Ticker: r.Ticker || r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
-    ...(portfolio.manualAssets || []).map(m => ({ ...m, SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
+    ...(portfolio?.acoes || []).map(a => ({ ...a, Categoria: a.SectionName || 'Ações', SectionType: a.SectionType || 'acoes' })),
+    ...(portfolio?.fiis || []).map(f => ({ ...f, Categoria: f.SectionName || 'FIIs', SectionType: f.SectionType || 'fiis' })),
+    ...(portfolio?.tesouro || []).map(t => ({ ...t, Ticker: t.Ticker || t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
+    ...(portfolio?.renda_fixa || []).map(r => ({ ...r, Ticker: r.Ticker || r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
+    ...(portfolio?.manualAssets || []).map(m => ({ ...m, SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
   ].map(a => ({ ...a, Categoria: a.Categoria || (a as any).category }));
 
   const dashboardCategories = Array.from(new Set([
@@ -112,10 +116,6 @@ export const Dashboard = () => {
   const tesouro = allAssets.filter(a => a.SectionType === 'tesouro');
   const rendaFixa = allAssets.filter(a => a.SectionType === 'renda_fixa');
 
-  const [activeDetailedTab, setActiveDetailedTab] = React.useState<'acoes' | 'fiis' | 'tesouro' | 'renda_fixa'>('acoes');
-  const [editingPM, setEditingPM] = React.useState<{type: string, id: string} | null>(null);
-  const [editValue, setEditValue] = React.useState('');
-  const { updateAsset } = useInvestmentStore();
 
   const COLORS = [ '#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#6366F1' ];
 

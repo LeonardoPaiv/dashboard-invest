@@ -55,11 +55,11 @@ export const Strategy = () => {
 
   if (!portfolio) return <div className="p-10 text-center text-white/40">Faça upload da carteira primeiro.</div>;
 
-  const total = portfolio.total_live;
+  const total = portfolio?.total_live || 0;
   const currentAlloc = {
-    fiis: (portfolio.fiis.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) / total) * 100,
-    acoes: (portfolio.acoes.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) / total) * 100,
-    rf: ((portfolio.tesouro.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) + portfolio.renda_fixa.reduce((acc, curr) => acc + (curr.Posicao || 0), 0)) / total) * 100,
+    fiis: total > 0 ? (portfolio.fiis.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) / total) * 100 : 0,
+    acoes: total > 0 ? (portfolio.acoes.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) / total) * 100 : 0,
+    rf: total > 0 ? ((portfolio.tesouro.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) + portfolio.renda_fixa.reduce((acc, curr) => acc + (curr.Posicao || 0), 0)) / total) * 100 : 0,
   };
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
@@ -86,10 +86,10 @@ export const Strategy = () => {
 
   const generatePrompt = () => {
     const assetsSummary = [
-      ...portfolio.fiis.map(f => `${f.Ticker} (FII): R$ ${f.Posicao.toLocaleString('pt-BR')}`),
-      ...portfolio.acoes.map(a => `${a.Ticker} (Ação): R$ ${a.Posicao.toLocaleString('pt-BR')}`),
-      ...portfolio.tesouro.map(t => `${t.Titulo} (Tesouro): R$ ${t.Posicao.toLocaleString('pt-BR')}`),
-      ...portfolio.renda_fixa.map(r => `${r.Ativo} (RF): R$ ${r.Posicao.toLocaleString('pt-BR')}`),
+      ...(portfolio?.fiis || []).map(f => `${f.Ticker} (FII): R$ ${f.Posicao.toLocaleString('pt-BR')}`),
+      ...(portfolio?.acoes || []).map(a => `${a.Ticker} (Ação): R$ ${a.Posicao.toLocaleString('pt-BR')}`),
+      ...(portfolio?.tesouro || []).map(t => `${t.Titulo} (Tesouro): R$ ${t.Posicao.toLocaleString('pt-BR')}`),
+      ...(portfolio?.renda_fixa || []).map(r => `${r.Ativo} (RF): R$ ${r.Posicao.toLocaleString('pt-BR')}`),
     ].join('\n');
 
     const prompt = `### 🤖 Prompt de Rebalanceamento Estratégico
