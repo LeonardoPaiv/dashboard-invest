@@ -146,11 +146,20 @@ export const TaxModule = () => {
   const [extAssets, setExtAssets] = useState<InternationalAsset[]>([]);
   const [showExtForm, setShowExtForm] = useState(false);
   const [newExt, setNewExt] = useState({ ticker: '', qty: 0, costUSD: 0, costBRL: 0 });
+  const [newExtInputs, setNewExtInputs] = useState({ qty: '0', costUSD: '0', costBRL: '0' });
 
   const handleAddExt = (e: React.FormEvent) => {
     e.preventDefault();
-    setExtAssets([...extAssets, { id: crypto.randomUUID(), ticker: newExt.ticker.toUpperCase(), quantity: newExt.qty, costBasisUSD: newExt.costUSD, costBasisBRL: newExt.costBRL, purchaseDate: new Date().toISOString() }]);
+    setExtAssets([...extAssets, { 
+      id: crypto.randomUUID(), 
+      ticker: newExt.ticker.toUpperCase(), 
+      quantity: newExt.qty, 
+      costBasisUSD: newExt.costUSD, 
+      costBasisBRL: newExt.costBRL, 
+      purchaseDate: new Date().toISOString() 
+    }]);
     setNewExt({ ticker: '', qty: 0, costUSD: 0, costBRL: 0 });
+    setNewExtInputs({ qty: '0', costUSD: '0', costBRL: '0' });
     setShowExtForm(false);
   };
 
@@ -275,8 +284,62 @@ export const TaxModule = () => {
                 <div className="max-w-md mx-auto"><DollarSign className="mx-auto text-white/10" size={64} /><h2 className="text-xl font-bold text-white">Ativos Internacionais</h2><p className="text-white/40 mt-2">Gestão manual de Stocks e ETFs globais.</p><button onClick={() => setShowExtForm(true)} className="mt-6 px-8 py-3 bg-white/5 hover:bg-white/10 text-white rounded-2xl font-bold border border-white/10 transition-all">Cadastrar Ativo</button></div>
               ) : (
                 <form onSubmit={handleAddExt} className="max-w-md mx-auto text-left space-y-4"><h3 className="text-lg font-bold text-white text-center mb-4">Novo Ativo Exterior</h3>
-                   <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-xs font-bold text-white/40 uppercase">Ticker</label><input type="text" required value={newExt.ticker} onChange={e => setNewExt({...newExt, ticker: e.target.value})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" placeholder="Ex: TSLA" /></div><div className="space-y-2"><label className="text-xs font-bold text-white/40 uppercase">Qtd.</label><input type="number" required value={newExt.qty} onChange={e => setNewExt({...newExt, qty: Number(e.target.value)})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" /></div></div>
-                   <div className="grid grid-cols-2 gap-4"><div className="space-y-2"><label className="text-xs font-bold text-white/40 uppercase">Custo (USD)</label><input type="number" step="0.01" required value={newExt.costUSD} onChange={e => setNewExt({...newExt, costUSD: Number(e.target.value)})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" /></div><div className="space-y-2"><label className="text-xs font-bold text-white/40 uppercase">Custo (BRL)</label><input type="number" step="0.01" required value={newExt.costBRL} onChange={e => setNewExt({...newExt, costBRL: Number(e.target.value)})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" /></div></div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-white/40 uppercase">Ticker</label>
+                        <input type="text" required value={newExt.ticker} onChange={e => setNewExt({...newExt, ticker: e.target.value})} className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" placeholder="Ex: TSLA" />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-white/40 uppercase">Qtd.</label>
+                        <input 
+                          type="number" 
+                          step="any"
+                          required 
+                          value={newExtInputs.qty} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            setNewExtInputs(prev => ({ ...prev, qty: val }));
+                            const num = parseFloat(val);
+                            if (!isNaN(num)) setNewExt({ ...newExt, qty: num });
+                          }} 
+                          className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" 
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-white/40 uppercase">Custo (USD)</label>
+                        <input 
+                          type="number" 
+                          step="any" 
+                          required 
+                          value={newExtInputs.costUSD} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            setNewExtInputs(prev => ({ ...prev, costUSD: val }));
+                            const num = parseFloat(val);
+                            if (!isNaN(num)) setNewExt({ ...newExt, costUSD: num });
+                          }} 
+                          className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-white/40 uppercase">Custo (BRL)</label>
+                        <input 
+                          type="number" 
+                          step="any" 
+                          required 
+                          value={newExtInputs.costBRL} 
+                          onChange={e => {
+                            const val = e.target.value;
+                            setNewExtInputs(prev => ({ ...prev, costBRL: val }));
+                            const num = parseFloat(val);
+                            if (!isNaN(num)) setNewExt({ ...newExt, costBRL: num });
+                          }} 
+                          className="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white focus:outline-none focus:border-primary" 
+                        />
+                      </div>
+                    </div>
                    <div className="flex gap-2 pt-4"><button type="button" onClick={() => setShowExtForm(false)} className="flex-1 px-6 py-3 bg-white/5 text-white rounded-xl font-bold">Cancelar</button><button type="submit" className="flex-1 px-6 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20">Salvar</button></div>
                 </form>
               )}

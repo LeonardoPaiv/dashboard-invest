@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { Target, Bot, PlusCircle, Trash2, Save, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -52,6 +52,16 @@ export const Strategy = () => {
   const { portfolio, settings, setSettings, snapshots, addSnapshot, deleteSnapshot, contributionAmount, setContributionAmount } = useInvestmentStore();
   const [selectedSnapId, setSelectedSnapId] = useState<string | null>(null);
   const [expandedSnapIds, setExpandedSnapIds] = useState<Set<string>>(new Set());
+
+  // Input states to avoid conversion issues while typing
+  const [contributionInput, setContributionInput] = useState(contributionAmount.toString());
+
+  // Sync with store changes
+  useEffect(() => {
+    if (parseFloat(contributionInput) !== contributionAmount) {
+      setContributionInput(contributionAmount.toString());
+    }
+  }, [contributionAmount]);
 
   if (!portfolio) return <div className="p-10 text-center text-white/40">Faça upload da carteira primeiro.</div>;
 
@@ -114,7 +124,7 @@ Atue como um analista de investimentos sênior.
 ${assetsSummary}
 
 **🚀 Missão:**
-Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira exatamente quais ativos comprar (e quanto em cada um) para aproximar a carteira dos meus alvos, respeitando a minha política de investimentos acima. Priorize os ativos que estão mais "para trás" in relação ao equilíbrio desejado.`;
+Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira exatamente quais ativos comprar (e quanto em cada um) para aproximar a carteira dos meus alvos, respeitando a minha política de investimentos acima. Avalie se faz sentido fazer trocas de ativos respeitando a estratégia estabelecida.`;
     
     navigator.clipboard.writeText(prompt);
     alert("Prompt completo copiado com sucesso!");
@@ -160,12 +170,22 @@ Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira e
                 </div>
                 
                 <div className="space-y-2">
-                  <input 
-                    type="number" 
-                    value={contributionAmount} 
-                    onChange={(e) => setContributionAmount(Number(e.target.value))}
-                    className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-2xl font-black text-primary focus:border-primary/50 outline-none transition-all"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 font-bold text-lg">R$</span>
+                    <input 
+                      type="number" 
+                      step="any"
+                      value={contributionInput} 
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setContributionInput(val);
+                        const num = parseFloat(val);
+                        if (!isNaN(num)) setContributionAmount(num);
+                        else if (val === '') setContributionAmount(0);
+                      }}
+                      className="w-full bg-black/40 border border-white/5 rounded-2xl p-4 pl-12 text-2xl font-black text-primary focus:border-primary/50 outline-none transition-all"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex gap-3">
@@ -301,14 +321,30 @@ const Card = ({ title, icon, children }: any) => (
   </div>
 );
 
-const Input = ({ label, value, onChange }: any) => (
-  <div className="space-y-2">
-    <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</label>
-    <input 
-      type="number" 
-      value={value} 
-      onChange={onChange}
-      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-bold text-white focus:border-primary/50 outline-none transition-all"
-    />
-  </div>
-);
+const Input = ({ label, value, onChange }: any) => {
+  const [localValue, setLocalValue] = useState(value?.toString() || '');
+
+  // Sync with prop when it changes from outside (e.g. store update)
+  useEffect(() => {
+    if (parseFloat(localValue) !== value) {
+      setLocalValue(value?.toString() || '');
+    }
+  }, [value]);
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</label>
+      <input 
+        type="number" 
+        step="any"
+        value={localValue} 
+        onChange={(e) => {
+          const val = e.target.value;
+          setLocalValue(val);
+          onChange(e);
+        }}
+        className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-bold text-white focus:border-primary/50 outline-none transition-all"
+      />
+    </div>
+  );
+};

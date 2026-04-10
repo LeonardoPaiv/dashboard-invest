@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { TrendingUp, RotateCcw, DollarSign, Calendar, Percent, Landmark } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
@@ -20,6 +20,18 @@ export const Projection = () => {
   const [monthlyContribution, setMonthlyContribution] = useState(1000);
   const [annualRate, setAnnualRate] = useState(10);
   const [years, setYears] = useState(10);
+
+  // States for input text to avoid conversion issues while typing
+  const [initialCapitalInput, setInitialCapitalInput] = useState(initialInvested.toString());
+  const [monthlyContributionInput, setMonthlyContributionInput] = useState('1000');
+  const [annualRateInput, setAnnualRateInput] = useState('10');
+  const [yearsInput, setYearsInput] = useState('10');
+
+  // Keep inputs in sync with initialInvested changes
+  useEffect(() => {
+    setInitialCapital(initialInvested);
+    setInitialCapitalInput(initialInvested.toString());
+  }, [initialInvested]);
 
   const projectionData = useMemo(() => {
     const data = [];
@@ -71,7 +83,10 @@ export const Projection = () => {
                 <div className="flex justify-between items-end mb-1">
                   <label className="text-[10px] font-black text-white/30 uppercase tracking-widest">Capital Inicial</label>
                   <button
-                    onClick={() => setInitialCapital(initialInvested)}
+                    onClick={() => {
+                      setInitialCapital(initialInvested);
+                      setInitialCapitalInput(initialInvested.toString());
+                    }}
                     className="text-[9px] font-black text-primary hover:text-primary-hover flex items-center gap-1 transition-colors uppercase"
                   >
                     <RotateCcw size={10} /> Resetar
@@ -81,8 +96,15 @@ export const Projection = () => {
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 font-bold text-sm">R$</span>
                   <input
                     type="number"
-                    value={initialCapital.toFixed(2)}
-                    onChange={(e) => setInitialCapital(Number(e.target.value))}
+                    step="any"
+                    value={initialCapitalInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInitialCapitalInput(val);
+                      const num = parseFloat(val);
+                      if (!isNaN(num)) setInitialCapital(num);
+                      else if (val === '') setInitialCapital(0);
+                    }}
                     className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 pl-10 text-lg font-bold text-white focus:border-primary/50 outline-none transition-all"
                   />
                 </div>
@@ -90,22 +112,40 @@ export const Projection = () => {
 
               <Input
                 label="Aporte Mensal (R$)"
-                value={monthlyContribution}
-                onChange={(e: any) => setMonthlyContribution(Number(e.target.value))}
+                value={monthlyContributionInput}
+                onChange={(e: any) => {
+                  const val = e.target.value;
+                  setMonthlyContributionInput(val);
+                  const num = parseFloat(val);
+                  if (!isNaN(num)) setMonthlyContribution(num);
+                  else if (val === '') setMonthlyContribution(0);
+                }}
                 icon={<DollarSign size={14} className="text-white/20" />}
               />
 
               <Input
                 label="Taxa Anual (%)"
-                value={annualRate}
-                onChange={(e: any) => setAnnualRate(Number(e.target.value))}
+                value={annualRateInput}
+                onChange={(e: any) => {
+                  const val = e.target.value;
+                  setAnnualRateInput(val);
+                  const num = parseFloat(val);
+                  if (!isNaN(num)) setAnnualRate(num);
+                  else if (val === '') setAnnualRate(0);
+                }}
                 icon={<Percent size={14} className="text-white/20" />}
               />
 
               <Input
                 label="Tempo (Anos)"
-                value={years}
-                onChange={(e: any) => setYears(Number(e.target.value))}
+                value={yearsInput}
+                onChange={(e: any) => {
+                  const val = e.target.value;
+                  setYearsInput(val);
+                  const num = parseInt(val);
+                  if (!isNaN(num)) setYears(num);
+                  else if (val === '') setYears(0);
+                }}
                 icon={<Calendar size={14} className="text-white/20" />}
               />
             </div>
