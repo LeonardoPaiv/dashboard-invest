@@ -164,20 +164,20 @@ export const TaxModule = () => {
   };
 
   return (
-    <div className="flex-1 h-full p-8 bg-background/50">
-      <div className="h-full mx-auto space-y-8">
+    <div className="flex-1 h-full p-4 md:p-8 bg-background/50 overflow-y-auto custom-scrollbar">
+      <div className="mx-auto space-y-6 md:space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-3"><Landmark className="text-primary" size={32} />Auxiliar IRPF {selectedYear + 1}</h1>
-            <p className="text-white/40 mt-1 font-medium">Fluxo de negociações de {selectedYear}</p>
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-3"><Landmark className="text-primary" size={28} />Auxiliar IRPF {selectedYear + 1}</h1>
+            <p className="text-xs md:text-sm text-white/40 mt-1 font-medium">Fluxo de negociações de {selectedYear}</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5">
-              <button onClick={() => setActiveSection('br')} className={`px-6 py-2 rounded-xl font-bold transition-all ${activeSection === 'br' ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white'}`}>Brasil</button>
-              <button onClick={() => setActiveSection('exterior')} className={`px-6 py-2 rounded-xl font-bold transition-all ${activeSection === 'exterior' ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white'}`}>Exterior</button>
+              <button onClick={() => setActiveSection('br')} className={`flex-1 sm:flex-initial px-5 py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${activeSection === 'br' ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white'}`}>Brasil</button>
+              <button onClick={() => setActiveSection('exterior')} className={`flex-1 sm:flex-initial px-5 py-2 rounded-xl text-xs md:text-sm font-bold transition-all ${activeSection === 'exterior' ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white'}`}>Exterior</button>
             </div>
             {activeSection === 'br' && (
-              <label className="flex items-center gap-3 px-6 py-2.5 bg-white/5 text-white border border-white/10 rounded-2xl cursor-pointer hover:bg-white/10 transition-all font-bold">
+              <label className="flex items-center justify-center gap-3 px-5 py-2.5 bg-white/5 text-white border border-white/10 rounded-2xl cursor-pointer hover:bg-white/10 transition-all font-bold text-xs md:text-sm">
                 <Upload size={18} /><span>Importar B3</span>
                 <input type="file" className="hidden" accept=".xlsx" onChange={(e) => e.target.files?.[0] && parseB3Excel(e.target.files[0])} />
               </label>
@@ -194,11 +194,11 @@ export const TaxModule = () => {
                 <p className="text-white/40 max-sm mx-auto">Importe sua planilha de negociações da B3 para gerar automaticamente os relatórios de Bens e Direitos e Renda Variável.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-[calc(100vh-220px)]">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-[400px] lg:h-[calc(100vh-220px)]">
                 {/* Coluna 1: Bens e Direitos */}
                 <Section title="Bens e Direitos (31/12)" icon={<FileText size={18} />} className="min-h-0">
                   <div className="bg-card border border-white/5 rounded-3xl overflow-hidden flex-1 flex flex-col min-h-0">
-                    <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
                       <table className="w-full text-left text-sm border-separate border-spacing-0">
                         <thead className="bg-white/5 text-[10px] font-black uppercase text-white/40 tracking-widest sticky top-0 z-10">
                           <tr><th className="px-6 py-4 bg-[#1a1c1e] border-b border-white/5">Ativo</th><th className="px-6 py-4 bg-[#1a1c1e] border-b border-white/5">Qtd.</th><th className="px-6 py-4 bg-[#1a1c1e] border-b border-white/5">PM</th><th className="px-6 py-4 bg-[#1a1c1e] border-b border-white/5">Custo Total</th></tr>

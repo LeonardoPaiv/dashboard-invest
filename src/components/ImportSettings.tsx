@@ -76,53 +76,52 @@ export const ImportSettings = () => {
     }
   };
 
-  // Calculate the maximum number of columns across all rows
   const maxCols = useMemo(() => {
     if (!previewData) return 0;
     return Math.max(...previewData.map(row => (row ? row.length : 0)));
   }, [previewData]);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Left Side: Config Form (50%) */}
-      <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar border-r border-white/5">
-        <div className="flex items-center justify-between">
+    <div className="flex flex-col lg:flex-row h-full overflow-y-auto lg:overflow-hidden">
+      {/* Left Side: Config Form */}
+      <div className="w-full lg:w-1/2 overflow-y-auto p-4 md:p-8 space-y-6 md:space-y-8 custom-scrollbar border-b lg:border-b-0 lg:border-r border-white/5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight flex items-center gap-3">
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight flex items-center gap-3">
               <Settings2 className="text-primary" />
               Configuração de Importação
             </h1>
-            <p className="text-white/40 mt-1">Personalize como o sistema interpreta seu arquivo Excel.</p>
+            <p className="text-white/40 text-xs md:text-sm mt-1">Personalize como o sistema interpreta seu arquivo Excel.</p>
           </div>
           <button 
             onClick={addSection}
-            className="flex items-center gap-2 px-6 py-3 bg-primary rounded-xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary rounded-xl font-bold text-sm hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20 shrink-0"
           >
-            <Plus size={20} />
+            <Plus size={18} />
             Nova Seção
           </button>
         </div>
 
-        <section className="bg-primary/5 border border-primary/20 rounded-3xl p-6 relative overflow-hidden">
+        <section className="bg-primary/5 border border-primary/20 rounded-3xl p-5 md:p-6 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <HelpCircle size={80} />
           </div>
-          <h2 className="text-lg font-bold flex items-center gap-2 mb-4">
-            <Info className="text-primary" size={20} />
+          <h2 className="text-base md:text-lg font-bold flex items-center gap-2 mb-3">
+            <Info className="text-primary" size={18} />
             Como configurar?
           </h2>
-          <div className="space-y-3 text-sm text-white/70 relative z-10">
-            <p><strong className="text-white">1. Visualize:</strong> Carregue seu arquivo XLSX no painel à direita.</p>
+          <div className="space-y-2 text-xs md:text-sm text-white/70 relative z-10">
+            <p><strong className="text-white">1. Visualize:</strong> Carregue seu arquivo XLSX no painel visualizador.</p>
             <p><strong className="text-white">2. Gatilhos:</strong> Informe o texto exato de uma célula que inicia uma tabela (ex: "Fundos Listados").</p>
             <p><strong className="text-white">3. Mapeie:</strong> Use os números das <span className="text-primary font-bold">colunas</span> indicados no visualizador correspondentes a cada campo.</p>
           </div>
         </section>
 
         <div className="space-y-6">
-          <h2 className="text-xl font-bold">Mapeamento de Tabelas</h2>
-          <div className="flex flex-col gap-6 pb-20">
+          <h2 className="text-lg md:text-xl font-bold">Mapeamento de Tabelas</h2>
+          <div className="flex flex-col gap-6 pb-10">
             {importConfig.sections.map((section) => (
-              <div key={section.id} className="bg-card border border-white/10 rounded-3xl p-6 space-y-6 relative group">
+              <div key={section.id} className="bg-card border border-white/10 rounded-3xl p-5 md:p-6 space-y-6 relative group">
                 <button 
                   onClick={() => removeSection(section.id)}
                   className="absolute top-4 right-4 p-2 text-white/20 hover:text-red-500 transition-colors"
@@ -130,7 +129,7 @@ export const ImportSettings = () => {
                   <Trash2 size={18} />
                 </button>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <InputGroup 
                     label="Nome da Seção" 
                     type="text"
@@ -157,7 +156,7 @@ export const ImportSettings = () => {
                     <select 
                       value={section.type}
                       onChange={(e) => handleUpdateSection(section.id, { type: e.target.value as any })}
-                      className="w-full bg-[#1a1c1e] border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-primary transition-all text-white"
+                      className="w-full bg-[#1a1c1e] border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-primary transition-all text-white"
                     >
                       <option value="acoes" className="bg-[#1a1c1e] text-white">Ações</option>
                       <option value="fiis" className="bg-[#1a1c1e] text-white">FIIs</option>
@@ -204,13 +203,13 @@ export const ImportSettings = () => {
         </div>
       </div>
 
-      {/* Right Side: Preview (50%) */}
-      <div className="flex-1 bg-[#0a0a0b] flex flex-col">
-        <div className="p-6 border-b border-white/5 flex items-center justify-between bg-card/30 backdrop-blur-xl">
+      {/* Right Side: Preview */}
+      <div className="w-full lg:w-1/2 bg-[#0a0a0b] flex flex-col min-h-[450px]">
+        <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between bg-card/30 backdrop-blur-xl">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-3">
-              <FileSpreadsheet className="text-primary" />
-              <h3 className="font-bold">Visualizador XLSX</h3>
+              <FileSpreadsheet className="text-primary" size={20} />
+              <h3 className="font-bold text-sm md:text-base">Visualizador XLSX</h3>
             </div>
             {sheetNames.length > 0 && (
               <select 
@@ -238,16 +237,16 @@ export const ImportSettings = () => {
           )}
         </div>
 
-        <div className="flex-1 overflow-hidden relative">
+        <div className="flex-1 overflow-hidden relative min-h-[350px]">
           {!previewData ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
-              <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mb-6 animate-pulse">
-                <Upload className="text-primary" size={32} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 animate-pulse">
+                <Upload className="text-primary" size={28} />
               </div>
-              <h4 className="text-xl font-bold mb-2">Carregue sua planilha</h4>
-              <p className="text-white/40 text-sm mb-8">Role os dados para conferir os índices das células.</p>
+              <h4 className="text-lg font-bold mb-1">Carregue sua planilha</h4>
+              <p className="text-white/40 text-xs mb-6 max-w-xs">Role os dados para conferir os índices das células.</p>
               
-              <label className="px-8 py-4 bg-white/5 border border-white/10 rounded-2xl font-bold hover:bg-white/10 cursor-pointer transition-all">
+              <label className="px-6 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-bold hover:bg-white/10 cursor-pointer transition-all">
                 Selecionar Arquivo
                 <input type="file" accept=".xlsx" className="hidden" onChange={handlePreviewUpload} />
               </label>
@@ -292,7 +291,7 @@ export const ImportSettings = () => {
            <div className="flex items-center gap-3">
              <Info size={14} className="text-primary shrink-0" />
              <p className="text-[10px] text-white/40 leading-relaxed font-medium">
-               Passe o mouse sobre as células para ver o número da coluna. Use as <span className="text-primary">colunas (topo)</span> e <span className="text-primary">linhas (laterais)</span> para o mapeamento.
+               Passe o mouse sobre as células para ver o número da coluna.
              </p>
            </div>
         </div>
@@ -312,7 +311,7 @@ const InputGroup = ({ label, value, onChange, onChangeText, type = 'number', hel
         value={value} 
         onChange={(e) => type === 'number' ? onChange?.(parseInt(e.target.value) || 0) : onChangeText?.(e.target.value)}
         list={suggestions ? listId : undefined}
-        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all text-sm"
+        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-primary transition-all text-sm text-white"
       />
       {suggestions && (
         <datalist id={listId}>
@@ -333,7 +332,7 @@ const MappingInput = ({ label, value, onChange }: { label: string, value: number
         value={value === null ? '' : value} 
         onChange={(e) => onChange(e.target.value === '' ? null : (parseInt(e.target.value) || 0))}
         placeholder="-"
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-center text-sm focus:outline-none focus:border-primary transition-all"
+        className="w-full bg-white/5 border border-white/10 rounded-lg px-2 py-2 text-center text-sm focus:outline-none focus:border-primary transition-all text-white"
       />
     </div>
   </div>

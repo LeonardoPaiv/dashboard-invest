@@ -133,13 +133,13 @@ Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira e
   const selectedSnap = snapshots.find(s => s.id === selectedSnapId) || snapshots[0];
 
   return (
-    <div className="flex-1 p-8 space-y-8 overflow-y-auto scrollbar-hide">
+    <div className="flex-1 p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto custom-scrollbar">
       <header>
-        <h2 className="text-3xl font-bold tracking-tight">Estratégia & Alocação</h2>
-        <p className="text-white/40">Projete seus aportes com base em seus alvos estratégicos.</p>
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Estratégia & Alocação</h2>
+        <p className="text-xs md:text-sm text-white/40">Projete seus aportes com base em seus alvos estratégicos.</p>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8 items-start">
         {/* Settings & Aporte Section */}
         <div className="space-y-6">
           <Card title="Estratégia e Alvos" icon={<Target className="text-primary" size={20}/>}>

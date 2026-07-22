@@ -68,13 +68,13 @@ export const Projection = () => {
   const finalResult = projectionData[projectionData.length - 1];
 
   return (
-    <div className="flex-1 p-8 space-y-8 overflow-y-auto no-scrollbar">
+    <div className="flex-1 p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto custom-scrollbar">
       <header>
-        <h2 className="text-3xl font-bold tracking-tight">Projeção de Patrimônio</h2>
-        <p className="text-white/40">Simule a evolução do seu capital ao longo do tempo com juros compostos.</p>
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight">Projeção de Patrimônio</h2>
+        <p className="text-xs md:text-sm text-white/40">Simule a evolução do seu capital ao longo do tempo com juros compostos.</p>
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 md:gap-8">
         {/* Controls Card */}
         <div className="xl:col-span-1 space-y-6">
           <Card title="Configurações" icon={<Landmark className="text-primary" size={20} />}>
@@ -155,7 +155,7 @@ export const Projection = () => {
         {/* Chart Card */}
         <div className="xl:col-span-3">
           <Card title="Gráfico de Evolução" icon={<TrendingUp className="text-secondary" size={20} />}>
-            <div className="h-[500px] w-full mt-4">
+            <div className="h-[300px] md:h-[500px] w-full mt-4">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={projectionData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <defs>
@@ -210,7 +210,7 @@ export const Projection = () => {
 
       </div>
         {/* Highlights Card */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <SummaryCard
             label="Total Acumulado"
             value={formatCurrency(finalResult.total)}

@@ -130,13 +130,13 @@ export const DataManagement = () => {
   };
 
   return (
-    <div className="flex-1 p-8 space-y-8 overflow-y-auto bg-background/50 backdrop-blur-sm animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-2">
+    <div className="flex-1 p-4 md:p-8 space-y-6 md:space-y-8 overflow-y-auto bg-background/50 backdrop-blur-sm animate-in fade-in duration-500 custom-scrollbar">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-2">
         <div>
-          <h1 className="text-3xl font-black bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent mb-1">
+          <h1 className="text-2xl md:text-3xl font-black bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent mb-1">
             Menu de Dados
           </h1>
-          <p className="text-white/60 font-medium">Gerencie seu LocalStorage, backups e configurações de dados.</p>
+          <p className="text-xs md:text-sm text-white/60 font-medium">Gerencie seu LocalStorage, backups e configurações de dados.</p>
         </div>
         
         {status.type && (

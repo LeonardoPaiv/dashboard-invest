@@ -219,65 +219,65 @@ export const AveragePrice = () => {
   const filteredAssets = assets.filter((a: AssetAverage) => a.ticker.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="flex-1 overflow-y-auto p-8 bg-background/50">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-background/50 custom-scrollbar">
+      <div className="max-w-6xl mx-auto space-y-6 md:space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-3">
-              <Calculator className="text-primary" size={32} />
+            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+              <Calculator className="text-primary" size={28} />
               Preço Médio Histórico
             </h1>
-            <p className="text-white/40 mt-1 font-medium">Calcule seu PM baseado na planilha de negociações da B3</p>
+            <p className="text-xs md:text-sm text-white/40 mt-1 font-medium">Calcule seu PM baseado na planilha de negociações da B3</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {assets.length > 0 && (
               <>
                 <button 
                   onClick={() => setActiveTab('imposto-renda')}
-                  className="flex items-center gap-3 px-6 py-3 bg-white/5 text-white border border-white/10 rounded-2xl hover:bg-white/10 transition-all font-bold"
+                  className="flex items-center justify-center gap-3 px-5 py-3 bg-white/5 text-white border border-white/10 rounded-2xl hover:bg-white/10 transition-all font-bold text-sm"
                 >
-                  <FileText size={20} className="text-primary" />
+                  <FileText size={18} className="text-primary" />
                   Relatório IRPF
                 </button>
                 <button 
                   onClick={handleSyncToDashboard}
-                  className="flex items-center gap-3 px-6 py-3 bg-white/5 text-white border border-white/10 rounded-2xl hover:bg-white/10 transition-all font-bold"
+                  className="flex items-center justify-center gap-3 px-5 py-3 bg-white/5 text-white border border-white/10 rounded-2xl hover:bg-white/10 transition-all font-bold text-sm"
                 >
-                  <CheckCheck size={20} className="text-green-400" />
+                  <CheckCheck size={18} className="text-green-400" />
                   Aplicar ao Dashboard
                 </button>
               </>
             )}
-            <label className="flex items-center gap-3 px-6 py-3 bg-primary text-white rounded-2xl cursor-pointer hover:bg-primary/90 transition-all font-bold shadow-lg shadow-primary/20">
-              <Upload size={20} />
+            <label className="flex items-center justify-center gap-3 px-5 py-3 bg-primary text-white rounded-2xl cursor-pointer hover:bg-primary/90 transition-all font-bold text-sm shadow-lg shadow-primary/20">
+              <Upload size={18} />
               Importar Planilha B3
               <input type="file" className="hidden" accept=".xlsx" onChange={(e) => e.target.files?.[0] && parseB3Excel(e.target.files[0])} />
             </label>
           </div>
         </div>
 
-        <div className="bg-primary/10 border border-primary/20 p-6 rounded-3xl flex gap-4">
-          <div className="bg-primary/20 p-3 rounded-2xl h-fit"><Info className="text-primary" size={24} /></div>
+        <div className="bg-primary/10 border border-primary/20 p-5 rounded-3xl flex gap-4">
+          <div className="bg-primary/20 p-2.5 rounded-2xl h-fit shrink-0"><Info className="text-primary" size={20} /></div>
           <div className="space-y-1">
-            <h3 className="font-bold text-white">Instruções de Uso</h3>
-            <p className="text-white/60 text-sm leading-relaxed">Exporte sua planilha de <b>Negociações</b> B3. O sistema irá higienizar os tickers e calcular o PM histórico.</p>
+            <h3 className="font-bold text-white text-sm">Instruções de Uso</h3>
+            <p className="text-white/60 text-xs md:text-sm leading-relaxed">Exporte sua planilha de <b>Negociações</b> B3. O sistema irá higienizar os tickers e calcular o PM histórico.</p>
           </div>
         </div>
 
-        {error && <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-400"><AlertCircle size={20} /><span>{error}</span></div>}
+        {error && <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-400 text-sm"><AlertCircle size={18} /><span>{error}</span></div>}
 
         {assets.length > 0 ? (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               <StatCard title="Ativos Negociados" value={assets.length} icon={<FileSpreadsheet size={24} />} />
               <StatCard title="Ativos em Carteira" value={assets.filter((a: AssetAverage) => a.totalQuantity > 0).length} icon={<TrendingUp size={24} />} />
               <StatCard title="Total Investido (PM)" value={new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(assets.reduce((acc: number, curr: AssetAverage) => acc + curr.totalInvested, 0))} icon={<Calculator size={24} />} />
             </div>
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={20} />
-              <input type="text" placeholder="Buscar ticker..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-card border border-white/5 rounded-2xl py-4 pl-12 pr-6 text-white focus:outline-none focus:border-primary/50 transition-all font-medium" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20" size={18} />
+              <input type="text" placeholder="Buscar ticker..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-card border border-white/5 rounded-2xl py-3.5 pl-11 pr-5 text-sm text-white focus:outline-none focus:border-primary/50 transition-all font-medium" />
             </div>
-            <div className="bg-card border border-white/5 rounded-3xl overflow-hidden">
+            <div className="bg-card border border-white/5 rounded-3xl overflow-x-auto custom-scrollbar">
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-white/5 text-white/40 text-xs font-black uppercase tracking-widest">

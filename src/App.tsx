@@ -11,33 +11,29 @@ import { DataManagement } from './components/DataManagement.tsx'
 import { History } from './components/History'
 import ErrorBoundary from './components/ErrorBoundary'
 
-// import { AdSidebar } from './components/AdSidebar'
-
 function App() {
   const { activeTab, setActiveTab } = useInvestmentStore();
 
   return (
     <ErrorBoundary>
-      <div className="flex h-screen bg-background text-white font-sans selection:bg-primary/30 selection:text-primary overflow-hidden">
-      {/* Sidebar - Fixa */}
-      <Sidebar />
+      <div className="flex flex-col md:flex-row h-screen h-[100dvh] bg-background text-white font-sans selection:bg-primary/30 selection:text-primary overflow-hidden">
+        {/* Sidebar / Header Mobile */}
+        <Sidebar />
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-black/10">
-        <div className="flex-1 overflow-hidden flex flex-col">
-          {activeTab === 'dashboard' && <Dashboard />}
-          {activeTab === 'strategy' && <Strategy />}
-          {activeTab === 'projection' && <Projection />}
-          {activeTab === 'plano-mensal' && <PlanoMensal setActiveTab={setActiveTab} />}
-          {activeTab === 'settings' && <ImportSettings />}
-          {activeTab === 'preco-medio' && <AveragePrice />}
-          {activeTab === 'imposto-renda' && <TaxModule />}
-          {activeTab === 'data-management' && <DataManagement />}
-          {activeTab === 'history' && <History />}
-        </div>
-      </main>
-
-      {/* <AdSidebar /> */}
+        {/* Main Content */}
+        <main className="flex-1 flex flex-col min-w-0 bg-black/10 overflow-hidden">
+          <div className="flex-1 overflow-hidden flex flex-col">
+            {activeTab === 'dashboard' && <Dashboard />}
+            {activeTab === 'strategy' && <Strategy />}
+            {activeTab === 'projection' && <Projection />}
+            {activeTab === 'plano-mensal' && <PlanoMensal setActiveTab={setActiveTab} />}
+            {activeTab === 'settings' && <ImportSettings />}
+            {activeTab === 'preco-medio' && <AveragePrice />}
+            {activeTab === 'imposto-renda' && <TaxModule />}
+            {activeTab === 'data-management' && <DataManagement />}
+            {activeTab === 'history' && <History />}
+          </div>
+        </main>
       </div>
     </ErrorBoundary>
   )

@@ -307,42 +307,49 @@ export const Dashboard = () => {
 
       {/* Detailed Holdings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card 
-          title="Ativos Detalhados"
-          reverseHeader
-          extra={
-            <div className="flex items-center gap-4">
-              <div className="flex bg-white/5 p-1 rounded-xl">
-                {[
-                  { id: 'acoes', label: 'Ações' },
-                  { id: 'fiis', label: 'FIIs' },
-                  { id: 'tesouro', label: 'Tesouro' },
-                  { id: 'renda_fixa', label: 'R. Fixa' }
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveDetailedTab(tab.id as any)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-tight transition-all ${
-                      activeDetailedTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white/60'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
+        <div className="bg-card border border-white/10 rounded-[32px] p-6 h-full flex flex-col shadow-2xl relative">
+          {/* Header Responsivo com Título na Primeira Linha e Dropdown de Ativos */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+            <div className="flex items-center justify-between w-full sm:w-auto">
+              <h3 className="text-lg font-black tracking-tight text-white/90">Ativos Detalhados</h3>
               <button
                 onClick={() => setIsAddAssetModalOpen(true)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl transition-all group"
+                className="sm:hidden flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl transition-all shrink-0"
+              >
+                <Plus size={15} />
+                <span className="text-xs font-black uppercase tracking-tight">Adicionar</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 justify-between sm:justify-end w-full sm:w-auto">
+              <div className="relative flex-1 sm:flex-none">
+                <select
+                  value={activeDetailedTab}
+                  onChange={(e) => setActiveDetailedTab(e.target.value as any)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-1.5 pr-8 text-xs font-black uppercase tracking-wider text-white appearance-none cursor-pointer focus:outline-none focus:border-primary/50 transition-all"
+                >
+                  <option value="acoes" className="bg-[#1a1c1e] text-white">Ações</option>
+                  <option value="fiis" className="bg-[#1a1c1e] text-white">FIIs</option>
+                  <option value="tesouro" className="bg-[#1a1c1e] text-white">Tesouro Direto</option>
+                  <option value="renda_fixa" className="bg-[#1a1c1e] text-white">Renda Fixa</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
+              </div>
+
+              <button
+                onClick={() => setIsAddAssetModalOpen(true)}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl transition-all group shrink-0"
               >
                 <Plus size={16} className="group-hover:rotate-90 transition-transform" />
                 <span className="text-xs font-black uppercase tracking-tight">Adicionar</span>
               </button>
             </div>
-          }
-        >
-          <div className="overflow-x-auto h-[500px] custom-scrollbar">
+          </div>
+
+          <div className="flex-1 overflow-hidden">
+            <div className="overflow-x-auto h-[500px] custom-scrollbar">
             {(activeDetailedTab === 'acoes' || activeDetailedTab === 'fiis') && (
-              <table className="w-full text-left">
+              <table className="w-full text-left min-w-[550px]">
                 <thead>
                   <tr className="border-b border-white/5 text-[12px] text-white/40 uppercase">
                     <th className="py-4 px-2 font-black tracking-widest">Ativo</th>
@@ -448,7 +455,7 @@ export const Dashboard = () => {
             )}
 
             {activeDetailedTab === 'renda_fixa' && (
-              <table className="w-full text-left">
+              <table className="w-full text-left min-w-[550px]">
                 <thead>
                   <tr className="border-b border-white/5 text-[12px] text-white/40 uppercase">
                     <th className="py-4 px-2 font-black tracking-widest">Produto</th>
@@ -508,7 +515,7 @@ export const Dashboard = () => {
             )}
 
             {activeDetailedTab === 'tesouro' && (
-              <table className="w-full text-left">
+              <table className="w-full text-left min-w-[550px]">
                 <thead>
                   <tr className="border-b border-white/5 text-[12px] text-white/40 uppercase">
                     <th className="py-4 px-2 font-black tracking-widest">Produto</th>
@@ -566,7 +573,8 @@ export const Dashboard = () => {
               </table>
             )}
           </div>
-        </Card>
+        </div>
+      </div>
 
         {/* Custom Lists Monitor */}
         <Card title="Listas de Ativos" extra={<AddListButton />}>
