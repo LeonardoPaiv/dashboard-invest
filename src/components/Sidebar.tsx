@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Settings, Calculator, Database, Menu, X } from 'lucide-react';
+import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Calculator, Database, Menu, X } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import logo from '../assets/logo.png';
 import { PortfolioSelector } from './PortfolioSelector';
@@ -142,10 +142,14 @@ export const Sidebar = () => {
         onClick={() => handleTabClick('history')}
       />
       <NavItem
-        icon={<Settings size={18} />}
-        label="Importação"
-        active={activeTab === 'settings'}
-        onClick={() => handleTabClick('settings')}
+        icon={<Upload size={18} />}
+        label="Importar Planilha"
+        active={isImportModalOpen}
+        onClick={() => {
+          setSelectedXlsxFile(null);
+          setIsImportModalOpen(true);
+          setIsMobileMenuOpen(false);
+        }}
       />
       <NavItem
         icon={<Database size={18} />}
@@ -163,7 +167,7 @@ export const Sidebar = () => {
         <span className="text-[11px] font-bold uppercase tracking-wider text-white/40 group-hover:text-white truncate">
           Importar Planilha
         </span>
-        <input type="file" className="hidden" accept=".xlsx" onChange={handleFileUpload} />
+        <input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleFileUpload} />
       </label>
 
       <div className="grid grid-cols-2 gap-2">

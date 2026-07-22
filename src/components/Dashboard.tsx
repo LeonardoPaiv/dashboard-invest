@@ -1,7 +1,7 @@
 import React from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink, Filter, ChevronDown, AlertCircle, Info, Layers } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink, Filter, ChevronDown, AlertCircle, Layers } from 'lucide-react';
 import { fetchQuotes } from '../services/brapi';
 
 const formatCurrency = (value: number) => {
@@ -18,7 +18,6 @@ export const Dashboard = () => {
     portfolio,
     portfolios,
     activePortfolioId,
-    equityHistory,
     updatePortfolioPrices,
     addHistoryEntry,
     customLists,
@@ -26,7 +25,6 @@ export const Dashboard = () => {
     addManualAsset,
     addAssetCategory,
     deleteManualAsset,
-    importConfig,
     updateAsset
   } = useInvestmentStore();
 
@@ -101,18 +99,21 @@ export const Dashboard = () => {
   }
 
   const allAssets = [
-    ...(portfolio?.acoes || []).map((a: any) => ({ ...a, Categoria: a.SectionName || 'Ações', SectionType: a.SectionType || 'acoes' })),
-    ...(portfolio?.fiis || []).map((f: any) => ({ ...f, Categoria: f.SectionName || 'FIIs', SectionType: f.SectionType || 'fiis' })),
-    ...(portfolio?.tesouro || []).map((t: any) => ({ ...t, Ticker: t.Ticker || t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
-    ...(portfolio?.renda_fixa || []).map((r: any) => ({ ...r, Ticker: r.Ticker || r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
-    ...(portfolio?.manualAssets || []).map((m: any) => ({ ...m, SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
-  ].map((a: any) => ({ ...a, Categoria: a.Categoria || a.category }));
+    ...(portfolio?.acoes || []).map((a: any) => ({ ...a, Categoria: 'Ações', SectionType: 'acoes' })),
+    ...(portfolio?.fiis || []).map((f: any) => ({ ...f, Categoria: 'FIIs', SectionType: 'fiis' })),
+    ...(portfolio?.tesouro || []).map((t: any) => ({ ...t, Ticker: t.Ticker || t.Titulo, Categoria: 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: 'tesouro' })),
+    ...(portfolio?.renda_fixa || []).map((r: any) => ({ ...r, Ticker: r.Ticker || r.Ativo, Categoria: 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: 'renda_fixa' })),
+    ...(portfolio?.manualAssets || []).map((m: any) => ({ ...m, Categoria: m.category || 'Outros', SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
+  ];
 
   const dashboardCategories = Array.from(new Set([
-    ...importConfig.sections.map((s) => s.name),
+    'Ações',
+    'FIIs',
+    'Tesouro Direto',
+    'Renda Fixa',
     ...assetCategories,
     ...allAssets.map((a) => a.Categoria)
-  ])).sort();
+  ])).filter(Boolean).sort();
 
   const compositionData = allAssets
     .filter((a) => compositionFilter === 'Todos' || a.Categoria === compositionFilter)
@@ -191,29 +192,7 @@ export const Dashboard = () => {
         </div>
       </header>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard title="Patrimônio Total" value={formatCurrency(portfolio.total_live)} icon={<Wallet className="text-primary" />} />
-        <MetricCard 
-          title="Total Investido (Custo)" 
-          value={formatCurrency(totalInvestido)} 
-          icon={<DollarSign className="text-secondary" />} 
-          tooltip={hasMissingAvgPrice ? "Alguns ativos não possuem preço médio. O valor atual foi usado como custo." : undefined}
-          alert={hasMissingAvgPrice}
-        />
-        <MetricCard 
-          title="Lucro/Prejuízo" 
-          value={formatCurrency(lucroPrejuizo)} 
-          icon={<TrendingUp className={lucroPrejuizo >= 0 ? 'text-emerald-500' : 'text-red-500'} />} 
-          trend={`${lucroPercentual >= 0 ? '+' : ''}${lucroPercentual.toFixed(2)}%`}
-          trendColor={lucroPrejuizo >= 0 ? 'text-emerald-500' : 'text-red-500'}
-          tooltip={hasMissingAvgPrice ? "Lucro incompleto. Ajuste o preço médio dos ativos sinalizados abaixo." : undefined}
-          alert={hasMissingAvgPrice}
-        />
-        <MetricCard title="Ativos Totais" value={allAssets.length.toString()} icon={<ArrowUpRight className="text-orange-500" />} />
-      </div>
-
-      {/* Composition & Equity Charts */}
+      {/* Main Grid: Composition & Consolidated Metrics Container */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card 
           title="Composição" 
@@ -281,26 +260,90 @@ export const Dashboard = () => {
           </div>
         </Card>
 
-        <Card title="Evolução Patrimonial">
-          <div className="h-[320px] w-full pb-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={equityHistory}>
-                <XAxis dataKey="date" stroke="#ffffff10" fontSize={9} axisLine={false} tickLine={false} />
-                <YAxis stroke="#ffffff10" fontSize={9} axisLine={false} tickLine={false} tickFormatter={(v) => `R$ ${v/1000}k`} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#000', border: '1px solid #333', borderRadius: '12px', color: '#fff' }}
-                  labelStyle={{ color: '#aaa', fontWeight: 'bold' }}
-                  itemStyle={{ color: '#fff' }}
-                />
-                <Bar dataKey="total" fill="url(#colorBarChart)" radius={[4, 4, 0, 0]} />
-                <defs>
-                  <linearGradient id="colorBarChart" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
+        {/* Resumo de Patrimônio & Desempenho Container */}
+        <Card title="Resumo de Patrimônio & Desempenho">
+          <div className="h-[320px] flex flex-col justify-between py-1">
+            <div className="grid grid-cols-2 gap-3.5 h-full">
+              {/* Metric 1: Patrimônio Total */}
+              <div className="bg-white/2 hover:bg-white/5 border border-white/5 hover:border-primary/30 p-4 rounded-2xl flex flex-col justify-between transition-all group">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Patrimônio Total</span>
+                  <div className="p-2 bg-primary/10 rounded-xl text-primary group-hover:scale-110 transition-transform">
+                    <Wallet size={18} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-lg sm:text-2xl font-black text-white tracking-tight">
+                    {formatCurrency(portfolio.total_live)}
+                  </div>
+                  <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 mt-1">
+                    <TrendingUp size={11} /> Posição Atualizada
+                  </span>
+                </div>
+              </div>
+
+              {/* Metric 2: Total Investido (Custo) */}
+              <div className="bg-white/2 hover:bg-white/5 border border-white/5 hover:border-white/10 p-4 rounded-2xl flex flex-col justify-between transition-all group">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Total Investido</span>
+                  <div className="p-2 bg-secondary/10 rounded-xl text-secondary group-hover:scale-110 transition-transform">
+                    <DollarSign size={18} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-lg sm:text-2xl font-black text-white/90 tracking-tight">
+                    {formatCurrency(totalInvestido)}
+                  </div>
+                  {hasMissingAvgPrice ? (
+                    <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1 mt-1" title="Alguns ativos não possuem preço médio.">
+                      <AlertCircle size={11} /> Custo Estimado
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-white/30 font-bold mt-1 block">
+                      Custo Total Consolidado
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Metric 3: Lucro / Prejuízo */}
+              <div className="bg-white/2 hover:bg-white/5 border border-white/5 hover:border-white/10 p-4 rounded-2xl flex flex-col justify-between transition-all group">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Lucro / Prejuízo</span>
+                  <div className={`p-2 rounded-xl transition-transform group-hover:scale-110 ${lucroPrejuizo >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                    <TrendingUp size={18} />
+                  </div>
+                </div>
+                <div>
+                  <div className={`text-lg sm:text-2xl font-black tracking-tight ${lucroPrejuizo >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {formatCurrency(lucroPrejuizo)}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${lucroPrejuizo >= 0 ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/15 text-red-400 border border-red-500/20'}`}>
+                      {lucroPercentual >= 0 ? '+' : ''}{lucroPercentual.toFixed(2)}% ROI
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Metric 4: Ativos Totais */}
+              <div className="bg-white/2 hover:bg-white/5 border border-white/5 hover:border-white/10 p-4 rounded-2xl flex flex-col justify-between transition-all group">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-white/40">Ativos Totais</span>
+                  <div className="p-2 bg-orange-500/10 rounded-xl text-orange-500 group-hover:scale-110 transition-transform">
+                    <ArrowUpRight size={18} />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-lg sm:text-2xl font-black text-white/90 tracking-tight">
+                    {allAssets.length} <span className="text-xs text-white/40 font-bold">posições</span>
+                  </div>
+                  <span className="text-[10px] text-white/30 font-bold mt-1 block truncate">
+                    {acoes.length} Ações • {fiis.length} FIIs • {tesouro.length + rendaFixa.length} RF
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </Card>
       </div>
@@ -840,31 +883,7 @@ const CompositionFilter = ({ categories, activeFilter, onSelect }: any) => {
   );
 };
 
-const MetricCard = ({ title, value, icon, trend, trendColor = 'text-emerald-500', tooltip, alert }: any) => (
-  <div className={`bg-card border ${alert ? 'border-orange-500/30' : 'border-white/10'} p-6 rounded-3xl relative overflow-hidden group hover:border-primary/30 transition-all shadow-xl`} title={tooltip}>
-    <div className="flex justify-between items-start mb-4 relative z-10">
-      <div className="flex items-center gap-3">
-        <div className="w-11 h-11 bg-white/5 rounded-2xl flex items-center justify-center group-hover:bg-primary/20 transition-all">
-          {React.cloneElement(icon, { size: 22 })}
-        </div>
-        {alert && (
-          <div className="text-orange-500 animate-pulse">
-            <AlertCircle size={18} />
-          </div>
-        )}
-      </div>
-      {trend && <span className={`text-[14px] font-black ${trendColor} bg-white/5 px-2 py-1 rounded-lg tracking-tight`}>{trend}</span>}
-    </div>
-    <div className="relative z-10">
-      <p className="text-white/30 text-[12px] font-black mb-1 uppercase tracking-widest flex items-center gap-2">
-        {title}
-        {tooltip && <Info size={12} className="opacity-40" />}
-      </p>
-      <p className="text-2xl font-black text-white/90 tracking-tighter">{value}</p>
-    </div>
-    <div className={`absolute top-0 right-0 w-32 h-32 ${alert ? 'bg-orange-500/5' : 'bg-primary/2'} blur-[80px] group-hover:bg-primary/5 transition-all`}></div>
-  </div>
-);
+
 
 const Card = ({ title, icon, children, extra, reverseHeader }: any) => (
   <div className="bg-card border border-white/10 rounded-[32px] p-6 h-full flex flex-col shadow-2xl relative">

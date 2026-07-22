@@ -3,8 +3,7 @@ import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './components/Dashboard'
 import { Strategy } from './components/Strategy'
 import { Projection } from './components/Projection'
-import { PlanoMensal } from './components/PlanoMensal.tsx' 
-import { ImportSettings } from './components/ImportSettings'
+import { PlanoMensal } from './components/PlanoMensal.tsx'
 import { AveragePrice } from './components/AveragePrice'
 import { TaxModule } from './components/TaxModule.tsx'
 import { DataManagement } from './components/DataManagement.tsx'
@@ -27,7 +26,6 @@ function App() {
             {activeTab === 'strategy' && <Strategy />}
             {activeTab === 'projection' && <Projection />}
             {activeTab === 'plano-mensal' && <PlanoMensal setActiveTab={setActiveTab} />}
-            {activeTab === 'settings' && <ImportSettings />}
             {activeTab === 'preco-medio' && <AveragePrice />}
             {activeTab === 'imposto-renda' && <TaxModule />}
             {activeTab === 'data-management' && <DataManagement />}

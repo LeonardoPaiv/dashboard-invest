@@ -260,6 +260,7 @@ interface InvestmentStore {
   setContributionAmount: (amount: number) => void
   importConfig: ImportConfig
   setImportConfig: (config: ImportConfig) => void
+  autoBuildImportSections: (sheetName: string, mapping: { tickerCol: number; quantityCol: number; priceCol: number; categoryCol: number | null }, parsedData: PortfolioData) => void
   addMonthlySnapshot: (snapshot: MonthlySnapshot, resetExpenses: boolean) => void
   deleteMonthlySnapshot: (id: string) => void
   updateAsset: (type: string, ticker: string, updates: any, targetPortfolioId?: string) => void
@@ -682,6 +683,89 @@ export const useInvestmentStore = create<InvestmentStore>()(
       setMonthlyPlan: (monthlyPlan) => set({ monthlyPlan }),
       setContributionAmount: (amount: number) => set({ contributionAmount: amount }),
       setImportConfig: (importConfig) => set({ importConfig }),
+      autoBuildImportSections: (sheetName, mapping, parsedData) => set((state) => {
+        const currentSections = state.importConfig.sections;
+        const newSections: SectionConfig[] = [];
+
+        if (parsedData.acoes.length > 0) {
+          newSections.push({
+            id: crypto.randomUUID(),
+            name: 'Ações',
+            trigger: 'Ações',
+            type: 'acoes',
+            sheetName,
+            mapping: {
+              ticker: mapping.tickerCol,
+              position: null,
+              quantity: mapping.quantityCol,
+              price: mapping.priceCol,
+              allocation: null,
+              avgPrice: mapping.priceCol
+            }
+          });
+        }
+
+        if (parsedData.fiis.length > 0) {
+          newSections.push({
+            id: crypto.randomUUID(),
+            name: 'FIIs',
+            trigger: 'FIIs',
+            type: 'fiis',
+            sheetName,
+            mapping: {
+              ticker: mapping.tickerCol,
+              position: null,
+              quantity: mapping.quantityCol,
+              price: mapping.priceCol,
+              allocation: null,
+              avgPrice: mapping.priceCol
+            }
+          });
+        }
+
+        if (parsedData.tesouro.length > 0) {
+          newSections.push({
+            id: crypto.randomUUID(),
+            name: 'Tesouro Direto',
+            trigger: 'Tesouro',
+            type: 'tesouro',
+            sheetName,
+            mapping: {
+              ticker: mapping.tickerCol,
+              position: null,
+              quantity: mapping.quantityCol,
+              price: mapping.priceCol,
+              allocation: null,
+              grossValue: mapping.priceCol
+            }
+          });
+        }
+
+        if (parsedData.renda_fixa.length > 0) {
+          newSections.push({
+            id: crypto.randomUUID(),
+            name: 'Renda Fixa',
+            trigger: 'Renda Fixa',
+            type: 'renda_fixa',
+            sheetName,
+            mapping: {
+              ticker: mapping.tickerCol,
+              position: null,
+              quantity: mapping.quantityCol,
+              price: mapping.priceCol,
+              allocation: null
+            }
+          });
+        }
+
+        const filteredExisting = currentSections.filter(cs => !newSections.some(ns => ns.type === cs.type && ns.sheetName === cs.sheetName));
+
+        return {
+          importConfig: {
+            sections: [...newSections, ...filteredExisting]
+          }
+        };
+      }),
       addMonthlySnapshot: (snapshot, resetExpenses) => set((state) => {
         const nextMonthlyPlan = resetExpenses
           ? { ...state.monthlyPlan, expenses: [] }
