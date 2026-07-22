@@ -1,7 +1,8 @@
 import React from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink, Filter, ChevronDown, AlertCircle, Info } from 'lucide-react';
+import { TrendingUp, Wallet, ArrowUpRight, DollarSign, Plus, Trash2, X, ChevronLeft, ChevronRight, Bot, Loader, ExternalLink, Filter, ChevronDown, AlertCircle, Info, Layers } from 'lucide-react';
+import { fetchQuotes } from '../services/brapi';
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -9,13 +10,26 @@ const formatCurrency = (value: number) => {
     currency: 'BRL',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(value || 0);
 };
 
-import { fetchQuotes } from '../services/brapi';
-
 export const Dashboard = () => {
-  const { portfolio, equityHistory, updatePortfolioPrices, addHistoryEntry, customLists, assetCategories, addManualAsset, addAssetCategory, deleteManualAsset, importConfig } = useInvestmentStore();
+  const {
+    portfolio,
+    portfolios,
+    activePortfolioId,
+    equityHistory,
+    updatePortfolioPrices,
+    addHistoryEntry,
+    customLists,
+    assetCategories,
+    addManualAsset,
+    addAssetCategory,
+    deleteManualAsset,
+    importConfig,
+    updateAsset
+  } = useInvestmentStore();
+
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [activeListIndex, setActiveListIndex] = React.useState(0);
   const [isAddAssetModalOpen, setIsAddAssetModalOpen] = React.useState(false);
@@ -24,7 +38,9 @@ export const Dashboard = () => {
   const [activeDetailedTab, setActiveDetailedTab] = React.useState<'acoes' | 'fiis' | 'tesouro' | 'renda_fixa'>('acoes');
   const [editingPM, setEditingPM] = React.useState<{type: string, id: string} | null>(null);
   const [editValue, setEditValue] = React.useState('');
-  const { updateAsset } = useInvestmentStore();
+
+  const activePortfolioObj = portfolios.find((p) => p.id === activePortfolioId);
+  const isConsolidated = activePortfolioId === 'all';
 
   const handleRefresh = React.useCallback(async (silent = false, isManual = false) => {
     if (!portfolio || isRefreshing) return;
@@ -34,9 +50,9 @@ export const Dashboard = () => {
         ...(portfolio?.acoes || []), 
         ...(portfolio?.fiis || []), 
         ...(portfolio?.manualAssets || [])
-      ].map(a => a.Ticker).filter(Boolean);
+      ].map((a: any) => a.Ticker).filter(Boolean);
       
-      const listTickers = (customLists || []).flatMap(l => l.items.map((i: any) => i.ticker));
+      const listTickers = (customLists || []).flatMap((l: any) => l.items.map((i: any) => i.ticker));
       const allTickers = Array.from(new Set([...portfolioTickers, ...listTickers]));
 
       if (allTickers.length > 0) {
@@ -49,7 +65,7 @@ export const Dashboard = () => {
             ...(portfolio?.tesouro || []), 
             ...(portfolio?.renda_fixa || []), 
             ...(portfolio?.manualAssets || [])
-          ].reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
+          ].reduce((acc: number, curr: any) => acc + (curr.Posicao || 0), 0);
           addHistoryEntry(newTotal);
         }
       }
@@ -61,7 +77,6 @@ export const Dashboard = () => {
     }
   }, [portfolio, customLists, isRefreshing, updatePortfolioPrices, addHistoryEntry]);
 
-  // Use a separate effect for the initial call and interval to avoid constant resets
   React.useEffect(() => {
     if (portfolio) {
       handleRefresh(true);
@@ -73,36 +88,42 @@ export const Dashboard = () => {
 
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [portfolio === null]); // Only restart if portfolio becomes available from null
+  }, [portfolio === null]);
 
-  if (!portfolio) return <div className="p-10 text-center text-white/40">Faça upload da carteira primeiro.</div>;
+  if (!portfolio) {
+    return (
+      <div className="p-10 text-center text-white/40 flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Wallet size={48} className="text-white/20 animate-bounce" />
+        <h3 className="text-xl font-bold text-white">Nenhum dado encontrado</h3>
+        <p className="text-sm max-w-sm">Importe uma planilha ou adicione ativos manualmente para visualizar seu dashboard.</p>
+      </div>
+    );
+  }
 
   const allAssets = [
-    ...(portfolio?.acoes || []).map(a => ({ ...a, Categoria: a.SectionName || 'Ações', SectionType: a.SectionType || 'acoes' })),
-    ...(portfolio?.fiis || []).map(f => ({ ...f, Categoria: f.SectionName || 'FIIs', SectionType: f.SectionType || 'fiis' })),
-    ...(portfolio?.tesouro || []).map(t => ({ ...t, Ticker: t.Ticker || t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
-    ...(portfolio?.renda_fixa || []).map(r => ({ ...r, Ticker: r.Ticker || r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
-    ...(portfolio?.manualAssets || []).map(m => ({ ...m, SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
-  ].map(a => ({ ...a, Categoria: a.Categoria || (a as any).category }));
+    ...(portfolio?.acoes || []).map((a: any) => ({ ...a, Categoria: a.SectionName || 'Ações', SectionType: a.SectionType || 'acoes' })),
+    ...(portfolio?.fiis || []).map((f: any) => ({ ...f, Categoria: f.SectionName || 'FIIs', SectionType: f.SectionType || 'fiis' })),
+    ...(portfolio?.tesouro || []).map((t: any) => ({ ...t, Ticker: t.Ticker || t.Titulo, Categoria: t.SectionName || 'Tesouro Direto', Segmento: 'Tesouro Direto', SectionType: t.SectionType || 'tesouro' })),
+    ...(portfolio?.renda_fixa || []).map((r: any) => ({ ...r, Ticker: r.Ticker || r.Ativo, Categoria: r.SectionName || 'Renda Fixa', Segmento: 'Renda Fixa', SectionType: r.SectionType || 'renda_fixa' })),
+    ...(portfolio?.manualAssets || []).map((m: any) => ({ ...m, SectionType: m.category === 'Ações' ? 'acoes' : m.category === 'FIIs' ? 'fiis' : 'manual' }))
+  ].map((a: any) => ({ ...a, Categoria: a.Categoria || a.category }));
 
   const dashboardCategories = Array.from(new Set([
-    ...importConfig.sections.map(s => s.name),
+    ...importConfig.sections.map((s) => s.name),
     ...assetCategories,
-    ...allAssets.map(a => a.Categoria)
+    ...allAssets.map((a) => a.Categoria)
   ])).sort();
 
-
-
   const compositionData = allAssets
-    .filter(a => compositionFilter === 'Todos' || a.Categoria === compositionFilter)
-    .sort((a, b) => b.Posicao - a.Posicao);
+    .filter((a) => compositionFilter === 'Todos' || a.Categoria === compositionFilter)
+    .sort((a, b) => (b.Posicao || 0) - (a.Posicao || 0));
   
-  const compositionTotal = compositionData.reduce((acc, curr) => acc + curr.Posicao, 0);
+  const compositionTotal = compositionData.reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
   
   const topCount = 8;
   const pieData = compositionData.slice(0, topCount);
   const othersData = compositionData.slice(topCount);
-  const othersTotal = othersData.reduce((acc, curr) => acc + curr.Posicao, 0);
+  const othersTotal = othersData.reduce((acc, curr) => acc + (curr.Posicao || 0), 0);
   
   if (othersTotal > 0) {
     pieData.push({
@@ -111,44 +132,59 @@ export const Dashboard = () => {
     } as any);
   }
 
-  const acoes = allAssets.filter(a => a.SectionType === 'acoes');
-  const fiis = allAssets.filter(a => a.SectionType === 'fiis');
-  const tesouro = allAssets.filter(a => a.SectionType === 'tesouro');
-  const rendaFixa = allAssets.filter(a => a.SectionType === 'renda_fixa');
-
+  const acoes = allAssets.filter((a) => a.SectionType === 'acoes');
+  const fiis = allAssets.filter((a) => a.SectionType === 'fiis');
+  const tesouro = allAssets.filter((a) => a.SectionType === 'tesouro');
+  const rendaFixa = allAssets.filter((a) => a.SectionType === 'renda_fixa');
 
   const COLORS = [ '#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#3B82F6', '#6366F1' ];
 
   const totalInvestido = allAssets.reduce((acc, curr) => {
     const cost = curr.PrecoMedio || curr.Cotacao || 0;
-    return acc + (curr.Quantidade * cost);
+    return acc + ((curr.Quantidade || 0) * cost);
   }, 0);
   
-  const hasMissingAvgPrice = allAssets.some(a => !a.PrecoMedio && a.Quantidade > 0);
-
-  const lucroPrejuizo = portfolio.total_live - totalInvestido;
-
+  const hasMissingAvgPrice = allAssets.some((a) => !a.PrecoMedio && (a.Quantidade || 0) > 0);
+  const lucroPrejuizo = (portfolio.total_live || 0) - totalInvestido;
   const lucroPercentual = totalInvestido > 0 ? (lucroPrejuizo / totalInvestido) * 100 : 0;
 
   return (
-    <div className="flex-1 p-4 space-y-6 overflow-y-auto no-scrollbar">
+    <div className="flex-1 p-6 space-y-6 overflow-y-auto custom-scrollbar">
+      {/* Header */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-white">Dashboard</h2>
-          <p className="text-white/40">Sua jornada financeira em dados reais.</p>
+          <div className="flex items-center gap-3">
+            <h2 className="text-3xl font-black tracking-tight text-white">Dashboard</h2>
+            {isConsolidated ? (
+              <span className="px-3 py-1 bg-primary/20 border border-primary/30 text-primary text-xs font-bold rounded-xl flex items-center gap-1.5">
+                <Layers size={14} />
+                Resumo Consolidado ({portfolios.length} carteiras)
+              </span>
+            ) : (
+              <span
+                className="px-3 py-1 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow"
+                style={{ backgroundColor: activePortfolioObj?.color || '#6366f1' }}
+              >
+                <Wallet size={14} />
+                {activePortfolioObj?.name || 'Carteira Principal'}
+              </span>
+            )}
+          </div>
+          <p className="text-white/40 text-xs mt-1">Sua jornada financeira em dados reais.</p>
         </div>
+
         <div className="flex items-center gap-3">
           <button 
             onClick={() => handleRefresh(false, true)}
             title="Atualizar Cotações"
-            className={`p-2.5 rounded-2xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 group`}
+            className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-white/60 hover:text-white hover:bg-white/10 transition-all flex items-center gap-2 group"
           >
             {isRefreshing ? (
               <Loader className="animate-spin text-primary" size={20} />
             ) : (
               <>
-                <TrendingUp size={20} className="group-hover:scale-110 transition-transform" />
-                <span className="text-[10px] font-black uppercase tracking-widest pr-1">Live</span>
+                <TrendingUp size={18} className="group-hover:scale-110 transition-transform" />
+                <span className="text-[10px] font-black uppercase tracking-widest pr-1">Live Quotes</span>
               </>
             )}
           </button>
@@ -177,7 +213,7 @@ export const Dashboard = () => {
         <MetricCard title="Ativos Totais" value={allAssets.length.toString()} icon={<ArrowUpRight className="text-orange-500" />} />
       </div>
 
-
+      {/* Composition & Equity Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card 
           title="Composição" 
@@ -220,23 +256,23 @@ export const Dashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                 <div className="text-[14px] text-white/20 uppercase font-black tracking-tight">{compositionFilter}</div>
-                 <div className="text-lg font-black text-white/80">{formatCurrency(compositionTotal)}</div>
+                 <div className="text-[12px] text-white/30 uppercase font-black tracking-tight">{compositionFilter}</div>
+                 <div className="text-lg font-black text-white/90">{formatCurrency(compositionTotal)}</div>
               </div>
             </div>
 
-            <div className="md:col-span-4 overflow-y-auto no-scrollbar space-y-1.5 py-2">
+            <div className="md:col-span-4 overflow-y-auto custom-scrollbar space-y-1.5 py-2">
               {pieData.map((asset, index) => {
-                const percent = (asset.Posicao / compositionTotal) * 100;
+                const percent = compositionTotal > 0 ? (asset.Posicao / compositionTotal) * 100 : 0;
                 return (
                   <div key={asset.Ticker} className="flex items-center justify-between p-1.5 rounded-lg bg-white/2 hover:bg-white/5 transition-all">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
-                      <span className="text-[14px] font-black text-white/60 truncate">{asset.Ticker}</span>
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[index % COLORS.length] }}></div>
+                      <span className="text-[13px] font-black text-white/80 truncate">{asset.Ticker}</span>
                     </div>
-                    <div className="text-right flex flex-col items-end flex-shrink-0">
-                      <span className="text-[14px] font-black text-white/90">{percent.toFixed(1)}%</span>
-                      <span className="text-[12px] text-white/30 font-bold tracking-tighter">{formatCurrency(asset.Posicao)}</span>
+                    <div className="text-right flex flex-col items-end shrink-0">
+                      <span className="text-[13px] font-black text-white/90">{percent.toFixed(1)}%</span>
+                      <span className="text-[11px] text-white/30 font-bold tracking-tighter">{formatCurrency(asset.Posicao)}</span>
                     </div>
                   </div>
                 );
@@ -269,6 +305,7 @@ export const Dashboard = () => {
         </Card>
       </div>
 
+      {/* Detailed Holdings */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card 
           title="Ativos Detalhados"
@@ -281,11 +318,13 @@ export const Dashboard = () => {
                   { id: 'fiis', label: 'FIIs' },
                   { id: 'tesouro', label: 'Tesouro' },
                   { id: 'renda_fixa', label: 'R. Fixa' }
-                ].map(tab => (
+                ].map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveDetailedTab(tab.id as any)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-tight transition-all ${activeDetailedTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white/60'}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-tight transition-all ${
+                      activeDetailedTab === tab.id ? 'bg-primary text-white shadow-lg' : 'text-white/40 hover:text-white/60'
+                    }`}
                   >
                     {tab.label}
                   </button>
@@ -296,16 +335,16 @@ export const Dashboard = () => {
                 className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-xl transition-all group"
               >
                 <Plus size={16} className="group-hover:rotate-90 transition-transform" />
-                <span className="text-sm font-black uppercase tracking-tight">Adicionar</span>
+                <span className="text-xs font-black uppercase tracking-tight">Adicionar</span>
               </button>
             </div>
           }
         >
-          <div className="overflow-x-auto h-[500px] scrollbar-hide">
+          <div className="overflow-x-auto h-[500px] custom-scrollbar">
             {(activeDetailedTab === 'acoes' || activeDetailedTab === 'fiis') && (
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-white/5 text-[14px] text-white/40 uppercase">
+                  <tr className="border-b border-white/5 text-[12px] text-white/40 uppercase">
                     <th className="py-4 px-2 font-black tracking-widest">Ativo</th>
                     <th className="py-4 px-2 font-black tracking-widest">Cotação</th>
                     <th className="py-4 px-2 font-black tracking-widest">Aloc.</th>
@@ -324,13 +363,22 @@ export const Dashboard = () => {
                         <td className="py-4 px-2">
                           <div className="flex items-center gap-2 group/ticker">
                             <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{String(asset.Ticker)}</div>
+                            {isConsolidated && asset.portfolioName && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold text-white/90"
+                                style={{ backgroundColor: asset.portfolioColor || '#6366f1' }}
+                                title={`Carteira: ${asset.portfolioName}`}
+                              >
+                                {asset.portfolioName}
+                              </span>
+                            )}
                             {!asset.PrecoMedio && (
                               <div className="text-orange-500/80" title="Preço médio faltando">
                                 <AlertCircle size={12} />
                               </div>
                             )}
                             <a 
-                              href={`https://investidor10.com.br/${activeDetailedTab === 'acoes' ? 'acoes' : 'fiis'}/${asset.Ticker.replace('11', '').replace('3', '').replace('4', '').toLowerCase() === 'itub' ? asset.Ticker.toLowerCase() : asset.Ticker.toLowerCase()}/`}
+                              href={`https://investidor10.com.br/${activeDetailedTab === 'acoes' ? 'acoes' : 'fiis'}/${asset.Ticker.toLowerCase()}/`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-white/10 hover:text-primary transition-colors opacity-0 group-hover/ticker:opacity-100"
@@ -338,7 +386,7 @@ export const Dashboard = () => {
                               <ExternalLink size={12} />
                             </a>
                           </div>
-                          <div className="text-[14px] text-white/20 font-bold">{asset.Segmento || asset.Categoria}</div>
+                          <div className="text-[11px] text-white/20 font-bold">{asset.Segmento || asset.Categoria}</div>
                         </td>
                         <td className="py-4 px-2">
                           <div className="font-bold text-white/90">{asset.Cotacao ? formatCurrency(asset.Cotacao) : '---'}</div>
@@ -350,7 +398,7 @@ export const Dashboard = () => {
                               value={editValue}
                               onChange={(e) => setEditValue(e.target.value)}
                               onBlur={() => {
-                                updateAsset(asset.SectionType || activeDetailedTab, asset.Ticker || (asset as any).id, { PrecoMedio: parseFloat(editValue.replace(',', '.')) || 0 });
+                                updateAsset(asset.SectionType || activeDetailedTab, asset.Ticker || (asset as any).id, { PrecoMedio: parseFloat(editValue.replace(',', '.')) || 0 }, asset.portfolioId);
                                 setEditingPM(null);
                               }}
                               onKeyDown={(e) => {
@@ -380,12 +428,12 @@ export const Dashboard = () => {
                         </td>
                         <td className="py-4 px-2 text-right">
                           <div className="font-black text-white/90">{formatCurrency(asset.Posicao)}</div>
-                          <div className="text-[12px] text-white/20 font-medium">{asset.Quantidade} un.</div>
+                          <div className="text-[11px] text-white/20 font-medium">{asset.Quantidade} un.</div>
                         </td>
                         <td className="py-4 px-2 text-right">
                           {(asset as any).id && (
                             <button 
-                              onClick={() => deleteManualAsset((asset as any).id)}
+                              onClick={() => deleteManualAsset((asset as any).id, asset.portfolioId)}
                               className="text-white/5 hover:text-red-500 transition-colors p-1"
                             >
                               <Trash2 size={14} />
@@ -402,7 +450,7 @@ export const Dashboard = () => {
             {activeDetailedTab === 'renda_fixa' && (
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-white/5 text-[14px] text-white/40 uppercase">
+                  <tr className="border-b border-white/5 text-[12px] text-white/40 uppercase">
                     <th className="py-4 px-2 font-black tracking-widest">Produto</th>
                     <th className="py-4 px-2 font-black tracking-widest">Indexador</th>
                     <th className="py-4 px-2 font-black tracking-widest">Vencimento</th>
@@ -419,13 +467,16 @@ export const Dashboard = () => {
                         <td className="py-4 px-2">
                           <div className="flex items-center gap-2">
                             <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{asset.Ticker}</div>
-                            {!asset.PrecoMedio && (
-                              <div className="text-orange-500/80" title="Preço médio faltando">
-                                <AlertCircle size={12} />
-                              </div>
+                            {isConsolidated && asset.portfolioName && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold text-white/90"
+                                style={{ backgroundColor: asset.portfolioColor || '#6366f1' }}
+                              >
+                                {asset.portfolioName}
+                              </span>
                             )}
                           </div>
-                          <div className="text-[12px] text-white/20 font-bold">{asset.Quantidade} un.</div>
+                          <div className="text-[11px] text-white/20 font-bold">{asset.Quantidade} un.</div>
                         </td>
                         <td className="py-4 px-2">
                           <div className="font-bold text-white/70">{asset.Indexador || '---'}</div>
@@ -438,41 +489,11 @@ export const Dashboard = () => {
                         </td>
                         <td className="py-4 px-2 text-right">
                           <div className="font-black text-white/90">{formatCurrency(asset.Posicao)}</div>
-                          {editingPM && editingPM.id === (asset.Ticker || (asset as any).id) ? (
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="text-[10px] text-white/20 font-bold uppercase">PM:</span>
-                              <input
-                                autoFocus
-                                type="text"
-                                className="w-20 bg-white/5 border border-primary/30 rounded text-[10px] text-white px-1 text-right outline-none"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onBlur={() => {
-                                  updateAsset(asset.SectionType || activeDetailedTab, asset.Ticker || (asset as any).id, { PrecoMedio: parseFloat(editValue.replace(',', '.')) || 0 });
-                                  setEditingPM(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') e.currentTarget.blur();
-                                  if (e.key === 'Escape') setEditingPM(null);
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <div 
-                              className="text-[10px] text-white/20 hover:text-primary transition-colors cursor-pointer"
-                              onClick={() => {
-                                setEditingPM({ type: asset.SectionType || activeDetailedTab, id: asset.Ticker || (asset as any).id });
-                                setEditValue(String(asset.PrecoMedio || ''));
-                              }}
-                            >
-                              PM: {asset.PrecoMedio ? formatCurrency(asset.PrecoMedio) : '---'}
-                            </div>
-                          )}
                         </td>
                         <td className="py-4 px-2 text-right">
                           {(asset as any).id && (
                             <button 
-                              onClick={() => deleteManualAsset((asset as any).id)}
+                              onClick={() => deleteManualAsset((asset as any).id, asset.portfolioId)}
                               className="text-white/5 hover:text-red-500 transition-colors p-1"
                             >
                               <Trash2 size={14} />
@@ -489,7 +510,7 @@ export const Dashboard = () => {
             {activeDetailedTab === 'tesouro' && (
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-white/5 text-[14px] text-white/40 uppercase">
+                  <tr className="border-b border-white/5 text-[12px] text-white/40 uppercase">
                     <th className="py-4 px-2 font-black tracking-widest">Produto</th>
                     <th className="py-4 px-2 font-black tracking-widest text-right">Bruto</th>
                     <th className="py-4 px-2 font-black tracking-widest text-center">Vencimento</th>
@@ -506,42 +527,15 @@ export const Dashboard = () => {
                         <td className="py-4 px-2">
                           <div className="flex items-center gap-2">
                             <div className="font-black text-white group-hover:text-primary transition-colors tracking-tight">{asset.Ticker}</div>
-                            {!asset.PrecoMedio && (
-                              <div className="text-orange-500/80" title="Preço médio faltando">
-                                <AlertCircle size={12} />
-                              </div>
+                            {isConsolidated && asset.portfolioName && (
+                              <span
+                                className="px-1.5 py-0.5 rounded text-[9px] font-bold text-white/90"
+                                style={{ backgroundColor: asset.portfolioColor || '#6366f1' }}
+                              >
+                                {asset.portfolioName}
+                              </span>
                             )}
                           </div>
-                          {editingPM && editingPM.id === (asset.Ticker || (asset as any).id) ? (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-white/20 font-bold uppercase">Apl:</span>
-                              <input
-                                autoFocus
-                                type="text"
-                                className="w-20 bg-white/5 border border-primary/30 rounded text-[10px] text-white px-1 outline-none"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onBlur={() => {
-                                  updateAsset(asset.SectionType || activeDetailedTab, asset.Ticker || (asset as any).id, { PrecoMedio: parseFloat(editValue.replace(',', '.')) || 0 });
-                                  setEditingPM(null);
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') e.currentTarget.blur();
-                                  if (e.key === 'Escape') setEditingPM(null);
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <div 
-                              className="text-[12px] text-white/20 font-bold hover:text-primary transition-colors cursor-pointer"
-                              onClick={() => {
-                                setEditingPM({ type: asset.SectionType || activeDetailedTab, id: asset.Ticker || (asset as any).id });
-                                setEditValue(String(asset.PrecoMedio || ''));
-                              }}
-                            >
-                              Aplicado: {formatCurrency(asset.PrecoMedio)}
-                            </div>
-                          )}
                         </td>
                         <td className="py-4 px-2 text-right">
                           <div className="font-bold text-white/70">{asset.ValorBruto ? formatCurrency(asset.ValorBruto) : '---'}</div>
@@ -554,12 +548,11 @@ export const Dashboard = () => {
                         </td>
                         <td className="py-4 px-2 text-right">
                           <div className="font-black text-emerald-500">{formatCurrency(asset.Posicao)}</div>
-                          <div className="text-[10px] text-white/20">{asset.Quantidade} un.</div>
                         </td>
                         <td className="py-4 px-2 text-right">
                           {(asset as any).id && (
                             <button 
-                              onClick={() => deleteManualAsset((asset as any).id)}
+                              onClick={() => deleteManualAsset((asset as any).id, asset.portfolioId)}
                               className="text-white/5 hover:text-red-500 transition-colors p-1"
                             >
                               <Trash2 size={14} />
@@ -575,12 +568,13 @@ export const Dashboard = () => {
           </div>
         </Card>
 
+        {/* Custom Lists Monitor */}
         <Card title="Listas de Ativos" extra={<AddListButton />}>
           <div className="relative group/carousel h-[500px] flex flex-col">
             <div className="flex items-center justify-between mb-4 px-2">
-               <h4 className="text-[14px] font-black text-white/30 uppercase tracking-widest">Monitoramento Direto</h4>
+               <h4 className="text-[12px] font-black text-white/30 uppercase tracking-widest">Monitoramento Direto</h4>
                <div className="flex gap-1.5">
-                  {customLists.map((_, idx) => (
+                  {customLists.map((_: any, idx: number) => (
                     <div key={idx} className={`w-1.5 h-1.5 rounded-full transition-all ${activeListIndex === idx ? 'bg-primary w-4' : 'bg-white/10'}`} />
                   ))}
                </div>
@@ -596,7 +590,7 @@ export const Dashboard = () => {
                 if (index !== activeListIndex) setActiveListIndex(index);
               }}
             >
-              {customLists.map((list) => (
+              {customLists.map((list: any) => (
                 <div key={list.id} className="min-w-full lg:min-w-[420px] snap-center">
                   <CustomList list={list} />
                 </div>
@@ -695,12 +689,12 @@ const AddAssetModal = ({ isOpen, onClose, onAdd, categories, onAddCategory }: an
               <div className="flex gap-2">
                 <select
                   required
-                  className="flex-1 bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-primary/50 transition-all font-bold appearance-none"
+                  className="flex-1 bg-black/40 border border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-primary/50 transition-all font-bold appearance-none text-white"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                 >
                   {categories.map((cat: string) => (
-                    <option key={cat} value={cat}>{cat}</option>
+                    <option key={cat} value={cat} className="bg-[#1a1c1e] text-white">{cat}</option>
                   ))}
                 </select>
                 <button
@@ -781,7 +775,7 @@ const AddAssetModal = ({ isOpen, onClose, onAdd, categories, onAddCategory }: an
 
           <button
             type="submit"
-            className="w-full bg-primary hover:bg-primary-hover text-white font-black py-5 rounded-[20px] shadow-xl shadow-primary/20 transition-all uppercase tracking-widest mt-4"
+            className="w-full bg-primary hover:bg-primary/90 text-white font-black py-5 rounded-[20px] shadow-xl shadow-primary/20 transition-all uppercase tracking-widest mt-4"
           >
             Adicionar à Carteira
           </button>
@@ -809,10 +803,10 @@ const CompositionFilter = ({ categories, activeFilter, onSelect }: any) => {
     <div className="relative" ref={containerRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-black/20 border border-white/5 rounded-xl hover:border-primary/30 transition-all group scale-90 origin-right"
+        className="flex items-center gap-2 px-3 py-1.5 bg-black/20 border border-white/5 rounded-xl hover:border-primary/30 transition-all group scale-90 origin-right text-white"
       >
         <Filter size={12} className="text-white/20 group-hover:text-primary transition-colors" />
-        <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{activeFilter}</span>
+        <span className="text-[10px] font-black uppercase tracking-widest">{activeFilter}</span>
         <ChevronDown size={12} className={`text-white/20 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -825,7 +819,9 @@ const CompositionFilter = ({ categories, activeFilter, onSelect }: any) => {
                 onSelect(cat);
                 setIsOpen(false);
               }}
-              className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold transition-all ${activeFilter === cat ? 'bg-primary text-white' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+              className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold transition-all ${
+                activeFilter === cat ? 'bg-primary text-white' : 'text-white/40 hover:text-white hover:bg-white/5'
+              }`}
             >
               {cat}
             </button>
@@ -852,7 +848,7 @@ const MetricCard = ({ title, value, icon, trend, trendColor = 'text-emerald-500'
       {trend && <span className={`text-[14px] font-black ${trendColor} bg-white/5 px-2 py-1 rounded-lg tracking-tight`}>{trend}</span>}
     </div>
     <div className="relative z-10">
-      <p className="text-white/30 text-[14px] font-black mb-1 uppercase tracking-widest flex items-center gap-2">
+      <p className="text-white/30 text-[12px] font-black mb-1 uppercase tracking-widest flex items-center gap-2">
         {title}
         {tooltip && <Info size={12} className="opacity-40" />}
       </p>
@@ -861,7 +857,6 @@ const MetricCard = ({ title, value, icon, trend, trendColor = 'text-emerald-500'
     <div className={`absolute top-0 right-0 w-32 h-32 ${alert ? 'bg-orange-500/5' : 'bg-primary/2'} blur-[80px] group-hover:bg-primary/5 transition-all`}></div>
   </div>
 );
-
 
 const Card = ({ title, icon, children, extra, reverseHeader }: any) => (
   <div className="bg-card border border-white/10 rounded-[32px] p-6 h-full flex flex-col shadow-2xl relative">
@@ -887,7 +882,7 @@ const AddListButton = () => {
       className="p-1.5 hover:bg-white/10 rounded-xl text-primary transition-all flex items-center gap-2 group border border-primary/20"
     >
       <Plus size={16} />
-      <span className="text-[14px] font-black uppercase tracking-widest hidden group-hover:inline pr-1 transition-all">Novo</span>
+      <span className="text-[12px] font-black uppercase tracking-widest hidden group-hover:inline pr-1 transition-all">Novo</span>
     </button>
   );
 };
@@ -926,13 +921,13 @@ const CustomList = ({ list }: { list: any }) => {
               setNewTicker('');
             }
           }}
-          className="p-3 bg-primary text-white rounded-2xl hover:bg-primary-hover shadow-lg shadow-primary/20 transition-all font-black"
+          className="p-3 bg-primary text-white rounded-2xl hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all font-black"
         >
           <Plus size={22} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar space-y-3">
+      <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3">
         {list.items.map((item: any) => (
           <div key={item.ticker} className="p-4 bg-black/20 border border-white/5 rounded-2xl flex flex-col gap-3 relative group hover:bg-black/40 transition-all">
             <div className="flex justify-between items-start">
@@ -970,7 +965,7 @@ const CustomList = ({ list }: { list: any }) => {
 
 const ValuationItem = ({ label, value, color = 'text-white/80' }: any) => (
   <div className="flex flex-col">
-    <span className="text-[12px] text-white/20 uppercase font-black tracking-tight mb-0.5">{label}</span>
-    <span className={`text-[14px] font-black ${color} truncate`}>{value}</span>
+    <span className="text-[10px] text-white/30 uppercase font-black tracking-tight mb-0.5">{label}</span>
+    <span className={`text-[12px] font-black ${color} truncate`}>{value}</span>
   </div>
 );

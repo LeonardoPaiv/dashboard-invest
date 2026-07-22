@@ -10,12 +10,14 @@ export const DataManagement = () => {
   // Get current store state and format as JSON
   useEffect(() => {
     const { 
-      portfolio, settings, snapshots, customLists, 
+      portfolios, activePortfolioId, portfolio, settings, snapshots, customLists, 
       equityHistory, monthlySnapshots, monthlyPlan, assetCategories, 
       contributionAmount, importConfig, historicalTransactions 
     } = store;
     
     const data = {
+      portfolios,
+      activePortfolioId,
       portfolio,
       settings,
       snapshots,
@@ -27,7 +29,7 @@ export const DataManagement = () => {
       contributionAmount,
       importConfig,
       historicalTransactions,
-      version: '1.1',
+      version: '1.2',
       exportDate: new Date().toISOString()
     };
     
