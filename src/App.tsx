@@ -8,6 +8,7 @@ import { AveragePrice } from './components/AveragePrice'
 import { TaxModule } from './components/TaxModule.tsx'
 import { DataManagement } from './components/DataManagement.tsx'
 import { History } from './components/History'
+import { FinancingModule } from './components/financing/FinancingModule'
 import ErrorBoundary from './components/ErrorBoundary'
 
 function App() {
@@ -28,6 +29,7 @@ function App() {
             {activeTab === 'plano-mensal' && <PlanoMensal setActiveTab={setActiveTab} />}
             {activeTab === 'preco-medio' && <AveragePrice />}
             {activeTab === 'imposto-renda' && <TaxModule />}
+            {activeTab === 'financiamento' && <FinancingModule />}
             {activeTab === 'data-management' && <DataManagement />}
             {activeTab === 'history' && <History />}
           </div>

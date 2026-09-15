@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Calculator, Database, Menu, X } from 'lucide-react';
+import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Calculator, Database, Menu, X, Building2 } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
 import logo from '../assets/logo.png';
 import { PortfolioSelector } from './PortfolioSelector';
@@ -134,6 +134,12 @@ export const Sidebar = () => {
         label="Imposto de Renda"
         active={activeTab === 'imposto-renda'}
         onClick={() => handleTabClick('imposto-renda')}
+      />
+      <NavItem
+        icon={<Building2 size={18} />}
+        label="Financiamento"
+        active={activeTab === 'financiamento'}
+        onClick={() => handleTabClick('financiamento')}
       />
       <NavItem
         icon={<History size={18} />}
