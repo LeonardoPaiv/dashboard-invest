@@ -1,0 +1,128 @@
+import { describe, expect, it, vi } from 'vitest'
+import { OpenRouterError, type AssistantMessage, type ChatCompletionParams } from '../lib/openrouter/client'
+import { createEmptyPortfolioData } from '../store/useInvestmentStore'
+import { runAgentTurn } from './agent'
+import { SYSTEM_PROMPT } from './systemPrompt'
+import { TOOL_DEFINITIONS, type ToolContext } from './tools'
+
+const toolContext = (): ToolContext => ({
+  workspace: {
+    portfolios: [
+      {
+        id: 'p1',
+        name: 'Carteira Principal',
+        data: createEmptyPortfolioData(),
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+    categories: ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto'],
+  },
+  viewData: createEmptyPortfolioData(),
+  viewLabel: 'Carteira Principal',
+  targetPortfolioId: 'p1',
+  allocationTargets: {},
+  createId: () => 'prop-1',
+})
+
+const call = (id: string, name: string, args: unknown) => ({
+  id,
+  type: 'function' as const,
+  function: { name, arguments: JSON.stringify(args) },
+})
+
+const scripted = (...replies: AssistantMessage[]) => {
+  const complete = vi.fn<(params: ChatCompletionParams) => Promise<AssistantMessage>>()
+  replies.forEach((reply) => complete.mockResolvedValueOnce(reply))
+  return complete
+}
+
+const base = { apiKey: 'k', model: 'm/x', history: [], userContent: 'oi', toolContext: toolContext() }
+
+describe('runAgentTurn', () => {
+  it('returns the reply when the model answers without tools', async () => {
+    const complete = scripted({ role: 'assistant', content: ' Olá! ' })
+    const result = await runAgentTurn({ ...base, complete })
+    expect(result.reply).toBe('Olá!')
+    expect(result.proposals).toEqual([])
+    expect(result.history).toEqual([
+      { role: 'user', content: 'oi' },
+      { role: 'assistant', content: ' Olá! ' },
+    ])
+    expect(complete).toHaveBeenCalledWith({
+      apiKey: 'k',
+      model: 'm/x',
+      tools: TOOL_DEFINITIONS,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: 'oi' },
+      ],
+    })
+  })
+
+  it('keeps earlier history ahead of the new user message', async () => {
+    const history = [
+      { role: 'user' as const, content: 'antes' },
+      { role: 'assistant' as const, content: 'resposta' },
+    ]
+    const complete = scripted({ role: 'assistant', content: 'ok' })
+    const result = await runAgentTurn({ ...base, history, complete })
+    expect(result.history.slice(0, 3)).toEqual([...history, { role: 'user', content: 'oi' }])
+  })
+
+  it('executes tool calls, feeds results back and collects proposals', async () => {
+    const complete = scripted(
+      { role: 'assistant', content: null, tool_calls: [call('c1', 'get_portfolio', {})] },
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          call('c2', 'propose_changes', {
+            summary: 'Compra',
+            operations: [{ type: 'upsert_asset', ticker: 'ITUB4', category: 'Ações', quantity: 10, avgPrice: 30 }],
+          }),
+        ],
+      },
+      { role: 'assistant', content: 'Prévia pronta.' },
+    )
+    const result = await runAgentTurn({ ...base, complete })
+    expect(complete).toHaveBeenCalledTimes(3)
+    expect(result.reply).toBe('Prévia pronta.')
+    expect(result.proposals).toHaveLength(1)
+    expect(result.proposals[0]).toMatchObject({ id: 'prop-1', status: 'pending' })
+    expect(result.history.map((m) => m.role)).toEqual(['user', 'assistant', 'tool', 'assistant', 'tool', 'assistant'])
+    expect(result.history[2]).toMatchObject({ role: 'tool', tool_call_id: 'c1' })
+    const thirdCallMessages = complete.mock.calls[2][0].messages
+    expect(thirdCallMessages[thirdCallMessages.length - 1]).toMatchObject({ role: 'tool', tool_call_id: 'c2' })
+  })
+
+  it('uses a default reply when the model ends with a proposal and no text', async () => {
+    const complete = scripted(
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          call('c1', 'propose_changes', {
+            summary: 's',
+            operations: [{ type: 'upsert_asset', ticker: 'ITUB4', category: 'Ações', quantity: 1, avgPrice: 1 }],
+          }),
+        ],
+      },
+      { role: 'assistant', content: null },
+    )
+    expect((await runAgentTurn({ ...base, complete })).reply).toBe('Confira a prévia abaixo antes de salvar.')
+  })
+
+  it('stops after maxSteps with an explanation', async () => {
+    const looping: AssistantMessage = { role: 'assistant', content: null, tool_calls: [call('c', 'get_portfolio', {})] }
+    const complete = vi.fn().mockResolvedValue(looping)
+    const result = await runAgentTurn({ ...base, complete, maxSteps: 2 })
+    expect(complete).toHaveBeenCalledTimes(2)
+    expect(result.reply).toBe('Parei depois de várias etapas sem concluir. Tente reformular o pedido.')
+  })
+
+  it('propagates API errors to the caller', async () => {
+    const complete = vi.fn().mockRejectedValue(new OpenRouterError('Invalid credentials', 401))
+    await expect(runAgentTurn({ ...base, complete })).rejects.toMatchObject({ status: 401 })
+  })
+})
