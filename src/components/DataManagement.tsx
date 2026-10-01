@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Download, Upload, Trash2, Database, AlertTriangle, CheckCircle, RefreshCcw, FileText } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
+import { DEFAULT_ASSET_CATEGORIES, DEFAULT_TARGETS } from '../domain/allocation';
 import { useChatStore } from '../store/useChatStore';
 
 export const DataManagement = () => {
@@ -29,7 +30,7 @@ export const DataManagement = () => {
       assetCategories,
       contributionAmount,
       historicalTransactions,
-      version: '1.2',
+      version: '1.3',
       exportDate: new Date().toISOString()
     };
     
@@ -96,7 +97,7 @@ export const DataManagement = () => {
       
       const emptyData = {
         portfolio: null,
-        settings: { estrategia: '', alvos: { fiis: 33.3, acoes: 33.3, renda_fixa: 33.4 } },
+        settings: { estrategia: '', alvos: { ...DEFAULT_TARGETS } },
         snapshots: [],
         customLists: [],
         equityHistory: [],
@@ -106,10 +107,10 @@ export const DataManagement = () => {
           expenses: [],
           categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
         },
-        assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
+        assetCategories: [...DEFAULT_ASSET_CATEGORIES],
         contributionAmount: 1000,
         historicalTransactions: [],
-        version: '1.1',
+        version: '1.3',
         exportDate: new Date().toISOString()
       };
       

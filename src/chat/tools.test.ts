@@ -33,7 +33,7 @@ const context = (): ToolContext => {
     viewData: main.data,
     viewLabel: 'Carteira Principal',
     targetPortfolioId: 'p1',
-    allocationTargets: { fiis: 30, acoes: 40, renda_fixa: 30 },
+    allocationTargets: { 'FIIs': 30, 'Ações': 40, 'Renda Fixa': 30 },
     createId: () => 'prop-1',
     currentPage: 'dashboard',
     navigate: vi.fn(),
@@ -41,7 +41,8 @@ const context = (): ToolContext => {
     app: {
       portfolios: [main],
       activePortfolioId: 'p1',
-      settings: { estrategia: '', alvos: { fiis: 30, acoes: 40, renda_fixa: 30 } },
+      settings: { estrategia: '', alvos: { 'FIIs': 30, 'Ações': 40, 'Renda Fixa': 30 } },
+      assetCategories: ['Cripto'],
       contributionAmount: 1000,
       monthlyPlan: {
         incomes: [{ id: 'i1', name: 'Salário', value: 8000, category: 'Salário' }],
@@ -70,7 +71,7 @@ describe('executeTool — get_portfolio', () => {
       portfolio: 'Carteira Principal',
       changesWillBeSavedTo: 'Carteira Principal',
       total: 12000,
-      allocationTargetsPct: { fiis: 30, acoes: 40, renda_fixa: 30 },
+      allocationTargetsPct: { 'FIIs': 30, 'Ações': 40, 'Renda Fixa': 30 },
     })
     expect(snapshot.categories).toContainEqual({ name: 'FIIs', builtin: true, value: 9600, sharePct: 80 })
     expect(snapshot.categories).toContainEqual({ name: 'Cripto', builtin: false, value: 0, sharePct: 0 })
@@ -266,6 +267,14 @@ describe('executeTool — get_app_data', () => {
     expect(data.financiamento.summary.financedAmount).toBeGreaterThan(0)
     expect(data.financiamento.presets.map((p: { id: string }) => p.id)).toContain('mcmv_social')
   })
+  it('describes the strategy classes with target, current share and suggestions', () => {
+    const { estrategia } = JSON.parse(executeTool('get_app_data', '{"sections":["estrategia"]}', context()).content)
+    expect(estrategia.targetsPct).toEqual({ 'FIIs': 30, 'Ações': 40, 'Renda Fixa': 30 })
+    expect(estrategia.classes).toContainEqual({ name: 'FIIs', targetPct: 30, currentPct: 80, value: 9600, inStrategy: true, builtin: true })
+    expect(estrategia.classes.map((c: { name: string }) => c.name)).toEqual(['Ações', 'FIIs', 'Renda Fixa'])
+    expect(estrategia.suggestedClasses).toContain('ETFs')
+    expect(estrategia.suggestedClasses).not.toContain('FIIs')
+  })
   it('rejects unknown sections', () => {
     expect(JSON.parse(executeTool('get_app_data', '{"sections":["senha"]}', context()).content).ok).toBe(false)
   })
@@ -287,6 +296,16 @@ describe('executeTool — propose_settings', () => {
       },
     })
     expect(JSON.parse(result.content)).toMatchObject({ ok: true, proposalId: 'prop-1', status: 'pending_user_confirmation' })
+  })
+  it('proposes a new strategy with custom classes on the strategy page', () => {
+    const targets = [{ class: 'Ações', pct: 50 }, { class: 'ETFs', pct: 30 }, { class: 'Cripto', pct: 20 }]
+    const result = executeTool(
+      'propose_settings',
+      JSON.stringify({ summary: 'Nova estratégia.', operations: [{ type: 'set_allocation_targets', targets }] }),
+      context(),
+    )
+    expect(result.proposal).toMatchObject({ page: 'strategy', status: 'pending' })
+    expect(result.proposal?.settings?.rows).toContainEqual({ label: 'Classe ETFs', after: 'nova', mode: 'criar' })
   })
   it('returns validation errors to the model without a proposal', () => {
     const result = executeTool(

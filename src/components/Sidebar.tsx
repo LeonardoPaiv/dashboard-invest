@@ -50,7 +50,7 @@ export const Sidebar = () => {
       assetCategories,
       contributionAmount,
       historicalTransactions,
-      version: '1.2',
+      version: '1.3',
       exportDate: new Date().toISOString()
     };
 

@@ -64,3 +64,38 @@ describe('resolveWritablePortfolioId', () => {
     expect(resolveWritablePortfolioId(store().portfolios, 'missing')).toBe('default')
   })
 })
+
+describe('allocation targets', () => {
+  it('starts with class-named targets', () => {
+    expect(store().settings.alvos).toEqual({ 'FIIs': 33.3, 'Ações': 33.3, 'Renda Fixa': 33.4 })
+  })
+
+  it('migrates legacy targets and snapshots when restoring an old backup', () => {
+    store().loadBackup({
+      version: '1.2',
+      settings: { estrategia: 'Dividendos', alvos: { fiis: 30, acoes: 40, renda_fixa: 30 } },
+      snapshots: [{ id: 's1', date: '01/01/2026', portfolio_total: 0, aporte: 100, result: '', targets: { fiis: 30, acoes: 40, rf: 30 }, current: { fiis: 10, acoes: 20, rf: 70 } }],
+    })
+    expect(store().settings).toEqual({ estrategia: 'Dividendos', alvos: { 'FIIs': 30, 'Ações': 40, 'Renda Fixa': 30 } })
+    expect(store().snapshots[0].current).toEqual({ 'FIIs': 10, 'Ações': 20, 'Renda Fixa': 70 })
+  })
+
+  it('migrates legacy targets persisted in localStorage', async () => {
+    localStorage.setItem('investment-storage', JSON.stringify({
+      state: { settings: { estrategia: '', alvos: { fiis: 50, acoes: 25, renda_fixa: 25 } }, snapshots: [{ id: 's1', targets: { fiis: 50, acoes: 25, rf: 25 }, current: { fiis: 0, acoes: 0, rf: 0 } }] },
+      version: 0,
+    }))
+    await useInvestmentStore.persist.rehydrate()
+    expect(store().settings.alvos).toEqual({ 'FIIs': 50, 'Ações': 25, 'Renda Fixa': 25 })
+    expect(Object.keys(store().snapshots[0].targets)).toEqual(['FIIs', 'Ações', 'Renda Fixa'])
+  })
+
+  it('keeps the target attached to a renamed category and drops it with a removed one', () => {
+    store().applyAssetOperations('default', [{ type: 'add_category', name: 'ETFs' }])
+    store().setSettings({ estrategia: '', alvos: { 'Ações': 50, 'ETFs': 30, 'Cripto': 20 } })
+    store().applyAssetOperations('default', [{ type: 'rename_category', from: 'ETFs', to: 'Fundos de Índice' }])
+    expect(store().settings.alvos).toEqual({ 'Ações': 50, 'Fundos de Índice': 30, 'Cripto': 20 })
+    store().applyAssetOperations('default', [{ type: 'remove_category', name: 'Cripto' }])
+    expect(store().settings.alvos).toEqual({ 'Ações': 62.5, 'Fundos de Índice': 37.5 })
+  })
+})

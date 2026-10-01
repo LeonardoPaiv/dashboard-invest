@@ -42,7 +42,8 @@ const toolContext = (): ToolContext => ({
   app: {
     portfolios: [main],
     activePortfolioId: 'p1',
-    settings: { estrategia: '', alvos: { fiis: 30, acoes: 40, renda_fixa: 30 } },
+    settings: { estrategia: '', alvos: { 'FIIs': 30, 'Ações': 40, 'Renda Fixa': 30 } },
+    assetCategories: [],
     contributionAmount: 1000,
     monthlyPlan: { incomes: [], expenses: [], categories: ['Outros'] },
     financing: { params, extraConfig, selectedPresetId: null },
