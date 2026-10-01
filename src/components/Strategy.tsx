@@ -1,55 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
-import { Target, Bot, PlusCircle, Trash2, Save, FileText, ChevronDown, ChevronUp } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-
-const SnapshotDetail = ({ snap }: { snap: any }) => {
-  const { updateSnapshotResult } = useInvestmentStore();
-  const [isEditing, setIsEditing] = useState(!snap.result);
-
-  return (
-    <div className="flex flex-col h-full bg-black/20">
-      <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
-        <div>
-          <h4 className="font-bold text-sm">{snap.date}</h4>
-          <p className="text-[10px] text-primary uppercase font-bold tracking-widest">Aporte: R$ {snap.aporte.toLocaleString('pt-BR')}</p>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => setIsEditing(!isEditing)} 
-            className={`p-2 rounded-lg transition-colors ${isEditing ? 'bg-primary/20 text-primary' : 'text-white/20 hover:text-white'}`}
-          >
-            {isEditing ? <Save size={16} /> : <FileText size={16} />}
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-1 p-2 bg-black/40 text-[9px] uppercase font-bold text-white/40 border-b border-white/5">
-        <div className="text-center">FIIs: {snap.current.fiis.toFixed(1)}%</div>
-        <div className="text-center">Ações: {snap.current.acoes.toFixed(1)}%</div>
-        <div className="text-center">RF: {snap.current.rf.toFixed(1)}%</div>
-      </div>
-
-      <div className="flex-1 overflow-hidden relative">
-        {isEditing ? (
-          <textarea 
-            className="w-full h-full bg-transparent p-6 text-sm outline-none focus:ring-0 resize-none font-mono text-white/80"
-            placeholder="Cole o resultado da IA aqui (Markdown aceito)..."
-            value={snap.result}
-            onChange={(e) => updateSnapshotResult(snap.id, e.target.value)}
-          />
-        ) : (
-          <div className="h-full overflow-y-auto p-8 prose prose-invert prose-sm max-w-none scrollbar-thin scrollbar-thumb-white/10">
-            <ReactMarkdown>{snap.result || "*Nenhum resultado inserido. Clique no ícone de arquivo para editar.*"}</ReactMarkdown>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
+import { Target, Bot, PlusCircle, Trash2, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { computeAllocation } from '../domain/allocation';
+import { collectCategories, listAssets } from '../domain/assets';
+import { SnapshotAllocation, SnapshotDetail } from './strategy/SnapshotDetail';
+import { TargetsEditor } from './strategy/TargetsEditor';
 
 export const Strategy = () => {
-  const { portfolio, settings, setSettings, snapshots, addSnapshot, deleteSnapshot, contributionAmount, setContributionAmount } = useInvestmentStore();
+  const { portfolio, portfolios, assetCategories, settings, setSettings, snapshots, addSnapshot, deleteSnapshot, contributionAmount, setContributionAmount } = useInvestmentStore();
   const [selectedSnapId, setSelectedSnapId] = useState<string | null>(null);
   const [expandedSnapIds, setExpandedSnapIds] = useState<Set<string>>(new Set());
 
@@ -65,12 +23,9 @@ export const Strategy = () => {
 
   if (!portfolio) return <div className="p-10 text-center text-white/40">Faça upload da carteira primeiro.</div>;
 
-  const total = portfolio?.total_live || 0;
-  const currentAlloc = {
-    fiis: total > 0 ? (portfolio.fiis.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) / total) * 100 : 0,
-    acoes: total > 0 ? (portfolio.acoes.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) / total) * 100 : 0,
-    rf: total > 0 ? ((portfolio.tesouro.reduce((acc, curr) => acc + (curr.Posicao || 0), 0) + portfolio.renda_fixa.reduce((acc, curr) => acc + (curr.Posicao || 0), 0)) / total) * 100 : 0,
-  };
+  const allocation = computeAllocation(portfolio, settings.alvos, collectCategories(assetCategories, portfolios));
+  const total = allocation.reduce((acc, row) => acc + row.value, 0);
+  const currentAlloc = Object.fromEntries(allocation.map((row) => [row.name, row.currentPct]));
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -80,27 +35,12 @@ export const Strategy = () => {
     setExpandedSnapIds(newSet);
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    setSettings({
-      alvos: settings.alvos,
-      estrategia: settings.estrategia,
-    });
-    alert("Configurações salvas com sucesso!");
-  };
-
-  const handleAlvoChange = (key: keyof typeof settings.alvos, value: string) => {
-    const numValue = parseFloat(value) || 0;
-    setSettings({ ...settings, alvos: { ...settings.alvos, [key]: numValue } });
-  };
-
   const generatePrompt = () => {
-    const assetsSummary = [
-      ...(portfolio?.fiis || []).map(f => `${f.Ticker} (FII): R$ ${f.Posicao.toLocaleString('pt-BR')}`),
-      ...(portfolio?.acoes || []).map(a => `${a.Ticker} (Ação): R$ ${a.Posicao.toLocaleString('pt-BR')}`),
-      ...(portfolio?.tesouro || []).map(t => `${t.Titulo} (Tesouro): R$ ${t.Posicao.toLocaleString('pt-BR')}`),
-      ...(portfolio?.renda_fixa || []).map(r => `${r.Ativo} (RF): R$ ${r.Posicao.toLocaleString('pt-BR')}`),
-    ].join('\n');
+    const assetsSummary = listAssets(portfolio)
+      .map((asset) => `${asset.ticker} (${asset.category}): R$ ${asset.value.toLocaleString('pt-BR')}`)
+      .join('\n');
+    const targetsSummary = allocation.filter((row) => row.inStrategy).map((row) => `- ${row.name}: ${row.targetPct}%`).join('\n');
+    const currentSummary = allocation.map((row) => `- ${row.name}: ${row.currentPct.toFixed(1)}%${row.inStrategy ? '' : ' (sem alvo)'}`).join('\n');
 
     const prompt = `### 🤖 Prompt de Rebalanceamento Estratégico
 Atue como um analista de investimentos sênior. 
@@ -108,14 +48,10 @@ Atue como um analista de investimentos sênior.
 **💰 Novo Aporte:** R$ ${contributionAmount.toLocaleString('pt-BR')}
 
 **🎯 Alvos da Estratégia:**
-- FIIs: ${settings.alvos.fiis}%
-- Ações: ${settings.alvos.acoes}%
-- Renda Fixa: ${settings.alvos.renda_fixa}%
+${targetsSummary || '- Não definidos'}
 
 **📈 Alocação Atual:**
-- FIIs: ${currentAlloc.fiis.toFixed(1)}%
-- Ações: ${currentAlloc.acoes.toFixed(1)}%
-- Renda Fixa: ${currentAlloc.rf.toFixed(1)}%
+${currentSummary}
 
 **📝 Minha Política de Investimentos:**
 "${settings.estrategia || 'Não definida'}"
@@ -143,12 +79,8 @@ Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira e
         {/* Settings & Aporte Section */}
         <div className="space-y-6">
           <Card title="Estratégia e Alvos" icon={<Target className="text-primary" size={20}/>}>
-            <form onSubmit={handleSaveSettings} className="space-y-6">
-              <div className="grid grid-cols-3 gap-4">
-                <Input label="FIIs (%)" value={settings.alvos.fiis} onChange={(e: any) => handleAlvoChange('fiis', e.target.value)} />
-                <Input label="Ações (%)" value={settings.alvos.acoes} onChange={(e: any) => handleAlvoChange('acoes', e.target.value)} />
-                <Input label="RF (%)" value={settings.alvos.renda_fixa} onChange={(e: any) => handleAlvoChange('renda_fixa', e.target.value)} />
-              </div>
+            <div className="space-y-6">
+              <TargetsEditor />
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-white/30 uppercase tracking-widest">Política de Investimentos</label>
@@ -159,10 +91,6 @@ Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira e
                   onChange={(e) => setSettings({ ...settings, estrategia: e.target.value })}
                 />
               </div>
-
-              <button type="submit" className="w-full py-3 bg-white/5 border border-white/10 text-white font-black rounded-2xl flex items-center justify-center gap-2 hover:bg-white/10 transition-all text-xs uppercase tracking-widest">
-                <Save size={16} /> Salvar Alvos
-              </button>
 
               <div className="pt-6 border-t border-white/5 space-y-4">
                 <div className="flex items-center gap-2 text-[10px] font-black text-white/30 uppercase tracking-widest">
@@ -198,12 +126,8 @@ Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira e
                         date: new Date().toLocaleDateString(),
                         portfolio_total: total,
                         aporte: contributionAmount,
-                        targets: { 
-                          fiis: settings.alvos.fiis, 
-                          acoes: settings.alvos.acoes, 
-                          rf: settings.alvos.renda_fixa 
-                        },
-                        current: currentAlloc as any,
+                        targets: { ...settings.alvos },
+                        current: currentAlloc,
                         result: ''
                       });
                       setSelectedSnapId(id);
@@ -221,7 +145,7 @@ Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira e
                   </button>
                 </div>
               </div>
-            </form>
+            </div>
           </Card>
         </div>
 
@@ -271,20 +195,7 @@ Com base no aporte de R$ ${contributionAmount.toLocaleString('pt-BR')}, sugira e
 
                       {isExpanded && (
                         <div className="px-4 pb-4 pt-2 border-t border-white/5 bg-black/10">
-                          <div className="grid grid-cols-3 gap-2">
-                             <div className="text-center p-2 bg-white/5 rounded-xl border border-white/5">
-                                <div className="text-[8px] text-white/30 uppercase font-black mb-1">FIIs</div>
-                                <div className="text-[10px] font-bold text-primary">{snap.current.fiis.toFixed(1)}%</div>
-                             </div>
-                             <div className="text-center p-2 bg-white/5 rounded-xl border border-white/5">
-                                <div className="text-[8px] text-white/30 uppercase font-black mb-1">Ações</div>
-                                <div className="text-[10px] font-bold text-emerald-500">{snap.current.acoes.toFixed(1)}%</div>
-                             </div>
-                             <div className="text-center p-2 bg-white/5 rounded-xl border border-white/5">
-                                <div className="text-[8px] text-white/30 uppercase font-black mb-1">RF</div>
-                                <div className="text-[10px] font-bold text-orange-400">{snap.current.rf.toFixed(1)}%</div>
-                             </div>
-                          </div>
+                          <SnapshotAllocation current={snap.current} />
                         </div>
                       )}
                     </div>
@@ -320,31 +231,3 @@ const Card = ({ title, icon, children }: any) => (
     <div className="flex-1">{children}</div>
   </div>
 );
-
-const Input = ({ label, value, onChange }: any) => {
-  const [localValue, setLocalValue] = useState(value?.toString() || '');
-
-  // Sync with prop when it changes from outside (e.g. store update)
-  useEffect(() => {
-    if (parseFloat(localValue) !== value) {
-      setLocalValue(value?.toString() || '');
-    }
-  }, [value]);
-
-  return (
-    <div className="space-y-2">
-      <label className="text-[10px] font-black text-white/40 uppercase tracking-widest">{label}</label>
-      <input 
-        type="number" 
-        step="any"
-        value={localValue} 
-        onChange={(e) => {
-          const val = e.target.value;
-          setLocalValue(val);
-          onChange(e);
-        }}
-        className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-sm font-bold text-white focus:border-primary/50 outline-none transition-all"
-      />
-    </div>
-  );
-};

@@ -11,6 +11,7 @@ export function readSettingsSnapshot(): SettingsSnapshot {
     portfolios: invest.portfolios,
     activePortfolioId: invest.activePortfolioId,
     settings: invest.settings,
+    assetCategories: invest.assetCategories,
     contributionAmount: invest.contributionAmount,
     monthlyPlan: invest.monthlyPlan,
     financing: { params: financing.params, extraConfig: financing.extraConfig, selectedPresetId: financing.selectedPresetId },
@@ -26,6 +27,7 @@ export function writeSettingsSnapshot(next: SettingsSnapshot): void {
   useInvestmentStore.setState({
     portfolios: next.portfolios,
     settings: next.settings,
+    assetCategories: next.assetCategories,
     contributionAmount: next.contributionAmount,
     monthlyPlan: next.monthlyPlan,
   })

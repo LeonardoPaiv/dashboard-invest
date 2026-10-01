@@ -1,5 +1,13 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import {
+  DEFAULT_ASSET_CATEGORIES,
+  DEFAULT_TARGETS,
+  migrateSnapshot,
+  migrateTargets,
+  retargetAfterCategoryOps,
+  type AllocationTargets,
+} from '../domain/allocation'
 import { collectCategories } from '../domain/assets'
 import { runOperations, type AssetOperation } from '../domain/operations'
 
@@ -27,13 +35,13 @@ export interface Portfolio {
   updatedAt: string
 }
 
-interface Snapshot {
+export interface Snapshot {
   id: string
   date: string
   portfolio_total: number
   aporte: number
-  targets: { fiis: number; acoes: number; rf: number }
-  current: { fiis: number; acoes: number; rf: number }
+  targets: Record<string, number>
+  current: Record<string, number>
   result: string
 }
 
@@ -204,7 +212,7 @@ interface InvestmentStore {
 
   settings: {
     estrategia: string
-    alvos: { fiis: number; acoes: number; renda_fixa: number }
+    alvos: AllocationTargets
   }
   snapshots: Snapshot[]
   customLists: any[]
@@ -277,7 +285,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
 
       settings: {
         estrategia: '',
-        alvos: { fiis: 33.3, acoes: 33.3, renda_fixa: 33.4 },
+        alvos: { ...DEFAULT_TARGETS },
       },
       snapshots: [],
       customLists: [],
@@ -292,7 +300,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
         expenses: [],
         categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
       },
-      assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
+      assetCategories: [...DEFAULT_ASSET_CATEGORIES],
       contributionAmount: 1000,
 
       setActivePortfolio: (id) => set((state) => ({
@@ -607,13 +615,13 @@ export const useInvestmentStore = create<InvestmentStore>()(
           portfolios: loadedPortfolios,
           activePortfolioId: activeId,
           portfolio: updatePortfolioDerivedView(loadedPortfolios, activeId),
-          settings: data.settings || { estrategia: '', alvos: { fiis: 33.3, acoes: 33.3, renda_fixa: 33.4 } },
-          snapshots: data.snapshots || [],
+          settings: { estrategia: String(data.settings?.estrategia ?? ''), alvos: migrateTargets(data.settings?.alvos) },
+          snapshots: (Array.isArray(data.snapshots) ? data.snapshots : []).map(migrateSnapshot),
           customLists: data.customLists || [],
           equityHistory: data.equityHistory || [],
           monthlySnapshots: data.monthlySnapshots || [],
           monthlyPlan: data.monthlyPlan || { incomes: [], expenses: [], categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros'] },
-          assetCategories: data.assetCategories || ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
+          assetCategories: data.assetCategories || [...DEFAULT_ASSET_CATEGORIES],
           contributionAmount: data.contributionAmount || 1000,
           historicalTransactions: data.historicalTransactions || []
         };
@@ -707,6 +715,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
         set({
           portfolios,
           assetCategories: workspace.categories,
+          settings: { ...state.settings, alvos: retargetAfterCategoryOps(state.settings.alvos, operations, workspace.categories) },
           portfolio: updatePortfolioDerivedView(portfolios, state.activePortfolioId)
         });
       },
@@ -724,7 +733,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
         ],
         activePortfolioId: 'default',
         portfolio: createEmptyPortfolioData(),
-        settings: { estrategia: '', alvos: { fiis: 33.3, acoes: 33.3, renda_fixa: 33.4 } },
+        settings: { estrategia: '', alvos: { ...DEFAULT_TARGETS } },
         snapshots: [],
         customLists: [],
         equityHistory: [],
@@ -735,7 +744,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
           expenses: [],
           categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
         },
-        assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
+        assetCategories: [...DEFAULT_ASSET_CATEGORIES],
         contributionAmount: 1000
       })
     }),
@@ -743,6 +752,8 @@ export const useInvestmentStore = create<InvestmentStore>()(
       name: 'investment-storage',
       onRehydrateStorage: () => (state) => {
         if (!state) return;
+        state.settings = { estrategia: String(state.settings?.estrategia ?? ''), alvos: migrateTargets(state.settings?.alvos) };
+        state.snapshots = (Array.isArray(state.snapshots) ? state.snapshots : []).map(migrateSnapshot);
         // Ensure portfolios list is initialized if coming from old storage
         if (!state.portfolios || !Array.isArray(state.portfolios) || state.portfolios.length === 0) {
           const legacyData = state.portfolio || createEmptyPortfolioData();

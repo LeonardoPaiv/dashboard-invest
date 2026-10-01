@@ -30,6 +30,8 @@ describe('appState', () => {
       portfolios: [...snap.portfolios, extra],
       activePortfolioId: 'p2',
       contributionAmount: 2500,
+      settings: { ...snap.settings, alvos: { 'ETFs': 100 } },
+      assetCategories: [...snap.assetCategories, 'ETFs'],
       financing: { ...snap.financing, params: { ...snap.financing.params, termMonths: 300 }, selectedPresetId: null },
       projection: { monthlyContribution: 500, annualRate: 8, years: 30 },
     })
@@ -38,6 +40,8 @@ describe('appState', () => {
     expect(invest.activePortfolioId).toBe('p2')
     expect(invest.portfolio).toBe(invest.portfolios[1].data)
     expect(invest.contributionAmount).toBe(2500)
+    expect(invest.settings.alvos).toEqual({ 'ETFs': 100 })
+    expect(invest.assetCategories).toContain('ETFs')
     expect(useFinancingStore.getState()).toMatchObject({ selectedPresetId: null, params: { termMonths: 300 } })
     expect(useProjectionStore.getState()).toMatchObject({ monthlyContribution: 500, annualRate: 8, years: 30 })
   })

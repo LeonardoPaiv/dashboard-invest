@@ -24,7 +24,8 @@ const extraConfig: ExtraAmortizationConfig = {
 const snapshot = (overrides: Partial<SettingsSnapshot> = {}): SettingsSnapshot => ({
   portfolios: [portfolio('p1', 'Carteira Principal'), portfolio('p2', 'Viagem')],
   activePortfolioId: 'p1',
-  settings: { estrategia: '', alvos: { fiis: 33.3, acoes: 33.3, renda_fixa: 33.4 } },
+  settings: { estrategia: '', alvos: { 'FIIs': 33.3, 'Ações': 33.3, 'Renda Fixa': 33.4 } },
+  assetCategories: ['Cripto', 'Exterior'],
   contributionAmount: 1000,
   monthlyPlan: {
     incomes: [{ id: 'i1', name: 'Salário', value: 8000, category: 'Salário' }],
@@ -77,16 +78,36 @@ describe('portfolios', () => {
 
 describe('strategy', () => {
   it('sets targets that add up to 100', () => {
-    const { snapshot: next, rows } = run([{ type: 'set_allocation_targets', fiis: 40, acoes: 40, renda_fixa: 20 }])
-    expect(next.settings.alvos).toEqual({ fiis: 40, acoes: 40, renda_fixa: 20 })
+    const targets = [{ class: 'fiis', pct: 40 }, { class: 'Ações', pct: 40 }, { class: 'Renda Fixa', pct: 20 }]
+    const { snapshot: next, rows } = run([{ type: 'set_allocation_targets', targets }])
+    expect(next.settings.alvos).toEqual({ 'FIIs': 40, 'Ações': 40, 'Renda Fixa': 20 })
     expect(rows).toContainEqual({ label: 'Meta FIIs', before: '33,3%', after: '40%', mode: 'alterar' })
     expect(rows).toHaveLength(3)
   })
-  it('rejects targets that do not add up or are not numbers', () => {
-    expect(firstError([{ type: 'set_allocation_targets', fiis: 50, acoes: 40, renda_fixa: 20 }])).toBe(
-      'Operação 1 (set_allocation_targets): As metas precisam somar 100% (soma atual: 110).',
-    )
-    expect(firstError([{ type: 'set_allocation_targets', fiis: '40', acoes: 40, renda_fixa: 20 }])).toMatch(/Metas inválidas/)
+  it('replaces the whole strategy, creating new classes and rescaling to 100', () => {
+    const targets = [{ class: 'Ações', pct: 2 }, { class: 'ETFs', pct: 1 }, { class: 'cripto', pct: 1 }, { class: 'Ouro', pct: 0 }]
+    const { snapshot: next, rows, errors } = run([{ type: 'set_allocation_targets', targets }])
+    expect(errors).toEqual([])
+    expect(next.settings.alvos).toEqual({ 'Ações': 50, 'ETFs': 25, 'Cripto': 25 })
+    expect(next.assetCategories).toEqual(['Cripto', 'Exterior', 'ETFs'])
+    expect(rows).toEqual([
+      { label: 'Classe ETFs', after: 'nova', mode: 'criar' },
+      { label: 'Meta Ações', before: '33,3%', after: '50%', mode: 'alterar' },
+      { label: 'Meta ETFs', before: '—', after: '25%', mode: 'alterar' },
+      { label: 'Meta Cripto', before: '—', after: '25%', mode: 'alterar' },
+      { label: 'Meta FIIs', before: '33,3%', mode: 'remover' },
+      { label: 'Meta Renda Fixa', before: '33,4%', mode: 'remover' },
+    ])
+  })
+  it('rejects malformed, duplicate, empty or unchanged targets', () => {
+    const error = (targets: unknown) => firstError([{ type: 'set_allocation_targets', targets }])
+    expect(error(undefined)).toMatch(/Metas inválidas/)
+    expect(firstError([{ type: 'set_allocation_targets', fiis: 40, acoes: 40, renda_fixa: 20 }])).toMatch(/Metas inválidas/)
+    expect(error([{ class: ' ', pct: 10 }])).toMatch(/nome da classe/)
+    expect(error([{ class: 'Ações', pct: '40' }])).toMatch(/Meta inválida para Ações/)
+    expect(error([{ class: 'Ações', pct: 40 }, { class: 'ações', pct: 60 }])).toMatch(/mais de uma vez/)
+    expect(error([{ class: 'Ações', pct: 0 }])).toMatch(/ao menos uma classe/)
+    expect(error([{ class: 'FIIs', pct: 33.3 }, { class: 'Ações', pct: 33.3 }, { class: 'Renda Fixa', pct: 33.4 }])).toMatch(/Nada a alterar/)
   })
   it('sets the strategy text and the contribution', () => {
     const { snapshot: next, errors } = run([

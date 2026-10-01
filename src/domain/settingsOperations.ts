@@ -2,16 +2,19 @@ import { brl, num } from '../lib/format'
 import { FINANCING_PRESETS } from '../store/useFinancingStore'
 import { createEmptyPortfolioData, type MonthlyItem, type MonthlyPlan, type Portfolio } from '../store/useInvestmentStore'
 import type { AmortizationRecalculation, ExtraAmortizationConfig, FinancingParameters } from '../types/financing'
-import { SECTIONS } from './assets'
+import { normalizeWeights, type AllocationTargets } from './allocation'
+import { SECTIONS, collectCategories } from './assets'
 import type { PageId } from './pages'
 
 export interface ProjectionParams { monthlyContribution: number; annualRate: number; years: number }
-export interface AllocationTargets { fiis: number; acoes: number; renda_fixa: number }
+export type { AllocationTargets }
 
 export interface SettingsSnapshot {
   portfolios: Portfolio[]
   activePortfolioId: string
   settings: { estrategia: string; alvos: AllocationTargets }
+  /** Classes de ativos criadas pelo usuário (as embutidas existem sempre). */
+  assetCategories: string[]
   contributionAmount: number
   monthlyPlan: MonthlyPlan
   financing: { params: FinancingParameters; extraConfig: ExtraAmortizationConfig; selectedPresetId: string | null }
@@ -225,19 +228,41 @@ function applyOne(s: SettingsSnapshot, op: SettingsOperation, createId: () => st
       }
     }
     case 'set_allocation_targets': {
-      const values = [op.fiis, op.acoes, op.renda_fixa]
-      if (!values.every((v) => isNum(v) && v >= 0 && v <= 100)) {
-        throw new Error('Metas inválidas: informe fiis, acoes e renda_fixa como números entre 0 e 100.')
+      if (!Array.isArray(op.targets) || op.targets.length === 0) {
+        throw new Error('Metas inválidas: informe targets como a lista completa de { class, pct } da estratégia.')
       }
-      const alvos: AllocationTargets = { fiis: op.fiis as number, acoes: op.acoes as number, renda_fixa: op.renda_fixa as number }
-      const sum = alvos.fiis + alvos.acoes + alvos.renda_fixa
-      if (Math.abs(sum - 100) > 0.1) throw new Error(`As metas precisam somar 100% (soma atual: ${num(sum)}).`)
-      const labels: [keyof AllocationTargets, string][] = [['fiis', 'Meta FIIs'], ['acoes', 'Meta Ações'], ['renda_fixa', 'Meta Renda Fixa']]
+      const known = collectCategories(s.assetCategories, s.portfolios)
+      const weights: [string, number][] = []
+      for (const item of op.targets as { class?: unknown; pct?: unknown }[]) {
+        const raw = str(item?.class)
+        if (!raw) throw new Error('Metas inválidas: toda meta precisa do nome da classe em "class".')
+        const pct = item?.pct
+        if (!isNum(pct) || pct < 0) throw new Error(`Meta inválida para ${raw}: use um número maior ou igual a zero.`)
+        const name = known.find((c) => sameName(c, raw)) ?? raw
+        if (weights.some(([other]) => sameName(other, name))) throw new Error(`A classe "${name}" aparece mais de uma vez.`)
+        weights.push([name, pct])
+      }
+      const alvos = normalizeWeights(Object.fromEntries(weights))
+      const before = Object.entries(s.settings.alvos)
+      const after = Object.entries(alvos)
+      if (after.length === 0) throw new Error('Informe ao menos uma classe com meta maior que zero.')
+      const created = after.map(([name]) => name).filter((name) => !known.some((c) => sameName(c, name)))
+      const previous = (name: string) => before.find(([key]) => key === name)?.[1]
+      const rows: SettingsPreviewRow[] = [
+        ...created.map((name) => ({ label: `Classe ${name}`, after: 'nova', mode: 'criar' as const })),
+        ...after
+          .filter(([name, pct]) => previous(name) !== pct)
+          .map(([name, pct]) => ({
+            label: `Meta ${name}`, before: previous(name) === undefined ? '—' : `${num(previous(name)!)}%`, after: `${num(pct)}%`, mode: 'alterar' as const,
+          })),
+        ...before
+          .filter(([name]) => !after.some(([key]) => key === name))
+          .map(([name, pct]) => ({ label: `Meta ${name}`, before: `${num(pct)}%`, mode: 'remover' as const })),
+      ]
+      if (rows.length === 0) throw new Error('Nada a alterar: as metas já são essas.')
       return {
-        snapshot: { ...s, settings: { ...s.settings, alvos } },
-        rows: labels.map(([key, label]) => ({
-          label, before: `${num(s.settings.alvos[key])}%`, after: `${num(alvos[key])}%`, mode: 'alterar' as const,
-        })),
+        snapshot: { ...s, settings: { ...s.settings, alvos }, assetCategories: [...s.assetCategories, ...created] },
+        rows,
       }
     }
     case 'set_strategy_text': {

@@ -1,4 +1,5 @@
-import { isBuiltinCategory, listAssets } from '../domain/assets'
+import { CLASS_CATALOG, computeAllocation } from '../domain/allocation'
+import { collectCategories, isBuiltinCategory, listAssets } from '../domain/assets'
 import {
   describeOperations,
   runOperations,
@@ -142,7 +143,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     function: {
       name: 'get_app_data',
       description:
-        'Lê os dados locais do app fora da lista de ativos: carteiras, estratégia (metas, aporte), plano mensal, histórico de fechamentos, financiamento (parâmetros, amortização extra, resumo calculado) e projeção. Somente leitura.',
+        'Lê os dados locais do app fora da lista de ativos: carteiras, estratégia (classes de ativos com meta e alocação atual, aporte), plano mensal, histórico de fechamentos, financiamento (parâmetros, amortização extra, resumo calculado) e projeção. Somente leitura.',
       parameters: {
         type: 'object',
         properties: {
@@ -174,9 +175,18 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
                 type: { type: 'string', enum: [...SETTINGS_OPERATION_TYPES] },
                 name: { type: 'string', description: 'create_portfolio, rename_portfolio: novo nome. *_monthly_item: nome do item. add_monthly_category: nome.' },
                 portfolio: { type: 'string', description: 'rename_portfolio, delete_portfolio: nome atual da carteira.' },
-                fiis: { type: 'number', description: 'set_allocation_targets: meta em %.' },
-                acoes: { type: 'number', description: 'set_allocation_targets: meta em %.' },
-                renda_fixa: { type: 'number', description: 'set_allocation_targets: meta em %. As três somam 100.' },
+                targets: {
+                  type: 'array',
+                  description: `set_allocation_targets: a estratégia completa, uma entrada por classe de ativo; classe omitida sai da estratégia. Os pesos são reescalados para somar 100. Classe que ainda não existe é criada. Classes comuns: ${CLASS_CATALOG.map((c) => c.name).join(', ')}; o usuário pode pedir qualquer outro nome.`,
+                  items: {
+                    type: 'object',
+                    properties: {
+                      class: { type: 'string', description: 'Nome da classe de ativo.' },
+                      pct: { type: 'number', description: 'Meta em % (ou peso relativo).' },
+                    },
+                    required: ['class', 'pct'],
+                  },
+                },
                 text: { type: 'string', description: 'set_strategy_text: texto da estratégia.' },
                 amount: { type: 'number', description: 'set_contribution: aporte em reais. add_lump_sum: valor do aporte avulso.' },
                 kind: { type: 'string', enum: ['income', 'expense'], description: '*_monthly_item: receita (income) ou despesa (expense).' },
@@ -340,7 +350,17 @@ function getAppData(args: any, context: ToolContext): ToolResult {
           total: round2(listAssets(p.data).reduce((acc, a) => acc + a.value, 0)),
         }))
       } else if (section === 'estrategia') {
-        out.estrategia = { text: app.settings.estrategia, targetsPct: app.settings.alvos, contributionAmount: app.contributionAmount }
+        const classes = computeAllocation(context.viewData, app.settings.alvos, collectCategories(app.assetCategories, app.portfolios))
+        out.estrategia = {
+          text: app.settings.estrategia,
+          targetsPct: app.settings.alvos,
+          classes: classes.map((c) => ({
+            name: c.name, targetPct: round2(c.targetPct), currentPct: round2(c.currentPct), value: round2(c.value),
+            inStrategy: c.inStrategy, builtin: c.builtin,
+          })),
+          suggestedClasses: CLASS_CATALOG.map((c) => c.name).filter((name) => !classes.some((c) => c.name === name)),
+          contributionAmount: app.contributionAmount,
+        }
       } else if (section === 'plano_mensal') {
         const item = ({ name, value, category }: { name: string; value: number; category: string }) => ({ name, value, category })
         const totalIncome = round2(sum(app.monthlyPlan.incomes))
