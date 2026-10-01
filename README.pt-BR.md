@@ -30,6 +30,12 @@ Não há mais assistente de mapeamento de colunas. Anexe no chat qualquer export
 - classifica cada ativo (inclusive tickers `…11` que são units, não FIIs);
 - mostra uma prévia de cada alteração, que só é salva depois de você clicar em **Confirmar**.
 
+### Ferramentas e configurações do assistente
+
+O assistente tem cinco ferramentas: `get_portfolio` (lê a carteira em exibição), `propose_changes` (prévias de ativos e categorias), `navigate` (leva você a outra página), `get_app_data` (lê metas, estratégia, plano mensal, financiamento, projeção e histórico) e `propose_settings` (prévias de configurações). Ele configura carteiras (criar/renomear/excluir), metas de alocação, texto da estratégia, aporte, itens e categorias do plano mensal, parâmetros/presets/amortização extra/aportes únicos do financiamento e parâmetros da projeção. Listas personalizadas, ativos do exterior do Imposto de Renda e a chave/modelo da API ficam fora do alcance dele.
+
+No Dashboard o chat fica ancorado ao lado da carteira; nas demais páginas, um botão flutuante no canto inferior direito abre o mesmo chat em um painel flutuante. Confirmar uma prévia aplica a alteração sem sair da página; o botão "Visualizar página" do cartão leva à página afetada. As conversas ficam salvas no `localStorage` (`chat-conversations`, até 30, anexos longos encurtados), não entram no backup JSON e são apagadas por "apagar tudo".
+
 Você precisa de uma chave própria do [OpenRouter](https://openrouter.ai/keys); ela fica salva apenas no seu navegador. Veja [`docs/openrouter.md`](./docs/openrouter.md). Há um modelo de exemplo em `public/modelo_importacao.xlsx`.
 
 ---

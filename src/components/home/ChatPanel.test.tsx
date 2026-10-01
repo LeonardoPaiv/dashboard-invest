@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Proposal } from '../../chat/tools'
+import { brl } from '../../lib/format'
 import { DEFAULT_MODEL } from '../../lib/openrouter/models'
 import { useAiSettingsStore } from '../../store/useAiSettingsStore'
 import { useChatStore } from '../../store/useChatStore'
@@ -37,7 +38,7 @@ describe('ChatPanel', () => {
 
   it('shows the empty state with helper cards when the key is valid', () => {
     render(<ChatPanel />)
-    expect(screen.getByText('Como posso ajudar com sua carteira?')).toBeInTheDocument()
+    expect(screen.getByText('Como posso ajudar?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Registrar compra/ })).toBeInTheDocument()
     expect(
       screen.getByText('Nada é salvo sem sua confirmação. Respostas podem conter erros — confira os valores.'),
@@ -88,12 +89,12 @@ describe('ChatPanel', () => {
       ],
     })
     render(<ChatPanel />)
-    expect(screen.getByText('Importa o extrato')).toBeInTheDocument()
+    expect(screen.getAllByText('Importa o extrato').length).toBeGreaterThan(0)
     expect(screen.getByText('extrato.xlsx')).toBeInTheDocument()
     expect(screen.getByText('Planilha · 3 abas')).toBeInTheDocument()
     expect(screen.getByText('Encontrei 4 posições.')).toBeInTheDocument()
     expect(screen.getByText('space-bunny-alpha está analisando…')).toBeInTheDocument()
-    expect(screen.queryByText('Como posso ajudar com sua carteira?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Como posso ajudar?')).not.toBeInTheDocument()
   })
 
   it('shows a pending proposal and saves it on confirm', async () => {
@@ -139,5 +140,60 @@ describe('ChatPanel', () => {
     render(<ChatPanel />)
     await userEvent.click(screen.getByRole('button', { name: 'Nova conversa' }))
     expect(chat().messages).toEqual([])
+  })
+
+  it('shows a settings proposal as before → after rows and applies it on confirm', async () => {
+    useChatStore.setState({
+      messages: [{
+        id: 'a1', role: 'assistant', text: 'Confira:',
+        proposals: [{
+          id: 'set-1', portfolioId: '', portfolioName: 'Estratégia', summary: 'Aporte maior.', operations: [], rows: [],
+          status: 'pending', page: 'strategy',
+          settings: {
+            operations: [{ type: 'set_contribution', amount: 2500 }],
+            rows: [{ label: 'Aporte', before: brl(1000), after: brl(2500), mode: 'alterar' }],
+          },
+        }],
+      }],
+    })
+    render(<ChatPanel />)
+    const card = screen.getByTestId('proposal-set-1')
+    expect(within(card).getByText('→ Estratégia')).toBeInTheDocument()
+    expect(within(card).getByText('Aporte')).toBeInTheDocument()
+    expect(within(card).getByText((_, el) => el?.textContent === brl(1000))).toBeInTheDocument()
+    expect(within(card).getByText((_, el) => el?.textContent === brl(2500))).toBeInTheDocument()
+    expect(within(card).getByText('alterar')).toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: 'Confirmar' }))
+    expect(useInvestmentStore.getState().contributionAmount).toBe(2500)
+    expect(within(card).getByText('Salvo em Estratégia')).toBeInTheDocument()
+  })
+  it('shows the open conversation title and the conversations button', () => {
+    useChatStore.setState({
+      conversationId: 'c1',
+      conversations: [{ id: 'c1', title: 'Metas 40/40/20', page: 'strategy', createdAt: '2026-01-01', updatedAt: '2026-01-01', messages: [], history: [] }],
+    })
+    render(<ChatPanel />)
+    expect(screen.getByText('Metas 40/40/20')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Conversas' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Fechar assistente' })).not.toBeInTheDocument()
+  })
+
+  it('offers "Visualizar página" apart from confirming, only when the data lives on another page', async () => {
+    const settings = {
+      id: 'set-1', portfolioId: '', portfolioName: 'Estratégia', summary: '', operations: [], rows: [],
+      status: 'pending' as const, page: 'strategy' as const,
+      settings: { operations: [{ type: 'set_contribution' as const, amount: 2500 }], rows: [] },
+    }
+    useChatStore.setState({
+      messages: [{ id: 'a1', role: 'assistant', text: 'Confira:', proposals: [settings, proposal({ page: 'dashboard' })] }],
+    })
+    render(<ChatPanel />)
+    expect(within(screen.getByTestId('proposal-prop-1')).queryByRole('button', { name: /Visualizar página/ })).not.toBeInTheDocument()
+    const card = screen.getByTestId('proposal-set-1')
+    await userEvent.click(within(card).getByRole('button', { name: 'Confirmar' }))
+    expect(useInvestmentStore.getState().activeTab).toBe('dashboard')
+    await userEvent.click(within(card).getByRole('button', { name: /Visualizar página/ }))
+    expect(useInvestmentStore.getState().activeTab).toBe('strategy')
+    expect(within(card).queryByRole('button', { name: /Visualizar página/ })).not.toBeInTheDocument()
   })
 })

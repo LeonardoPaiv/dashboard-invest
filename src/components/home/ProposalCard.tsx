@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
-import { Check, CheckCircle2 } from 'lucide-react'
+import { ArrowUpRight, Check, CheckCircle2 } from 'lucide-react'
 import type { Proposal } from '../../chat/tools'
 import { collectCategories } from '../../domain/assets'
 import type { PreviewMode } from '../../domain/operations'
+import type { SettingsPreviewRow } from '../../domain/settingsOperations'
 import { categoryColor } from '../../domain/portfolioView'
 import { brl, num } from '../../lib/format'
 import { useChatStore } from '../../store/useChatStore'
@@ -19,6 +20,12 @@ const CHIP: Record<PreviewMode, string> = {
   'excluir categoria': 'bg-red-500/15 text-red-400',
 }
 
+const SETTINGS_CHIP: Record<SettingsPreviewRow['mode'], string> = {
+  criar: 'bg-emerald-500/15 text-emerald-400',
+  alterar: 'bg-amber-500/15 text-amber-400',
+  remover: 'bg-red-500/15 text-red-400',
+}
+
 interface Props {
   messageId: string
   proposal: Proposal
@@ -29,6 +36,25 @@ export const ProposalCard = ({ messageId, proposal }: Props) => {
   const portfolios = useInvestmentStore((s) => s.portfolios)
   const confirmProposal = useChatStore((s) => s.confirmProposal)
   const dismissProposal = useChatStore((s) => s.dismissProposal)
+  const viewProposal = useChatStore((s) => s.viewProposal)
+  const activeTab = useInvestmentStore((s) => s.activeTab)
+  const activePortfolioId = useInvestmentStore((s) => s.activePortfolioId)
+  const otherPortfolio =
+    !proposal.settings && activePortfolioId !== 'all' && activePortfolioId !== proposal.portfolioId
+  const canView =
+    proposal.page !== undefined &&
+    (proposal.page !== activeTab || otherPortfolio) &&
+    (proposal.status === 'pending' || proposal.status === 'done')
+  const viewButton = canView && (
+    <button
+      type="button"
+      onClick={() => viewProposal(messageId, proposal.id)}
+      className="ml-auto flex items-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-white/60 text-[11px] font-black uppercase tracking-wide hover:text-white hover:bg-white/10 transition-colors"
+    >
+      Visualizar página
+      <ArrowUpRight size={13} />
+    </button>
+  )
   const categories = useMemo(() => collectCategories(assetCategories, portfolios), [assetCategories, portfolios])
 
   return (
@@ -68,12 +94,31 @@ export const ProposalCard = ({ messageId, proposal }: Props) => {
         </div>
       ))}
 
+      {proposal.settings?.rows.map((row, index) => (
+        <div
+          key={`s-${index}`}
+          className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_auto] gap-2 items-center px-4 py-2.5 border-b border-white/5 text-xs"
+        >
+          <span className="font-black truncate">{row.label}</span>
+          <span className="flex items-center gap-1.5 min-w-0 justify-end text-[11px] font-bold">
+            {row.before !== undefined && <span className="text-white/40 line-through truncate">{row.before}</span>}
+            {row.before !== undefined && row.after !== undefined && <span className="text-white/30">→</span>}
+            {row.after !== undefined && <span className="text-white/80 truncate">{row.after}</span>}
+          </span>
+          <span
+            className={`justify-self-end px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide whitespace-nowrap ${SETTINGS_CHIP[row.mode]}`}
+          >
+            {row.mode}
+          </span>
+        </div>
+      ))}
+
       {proposal.summary && (
         <div className="px-4 py-2.5 text-[11px] text-white/40 font-semibold leading-relaxed">{proposal.summary}</div>
       )}
 
       {proposal.status === 'pending' && (
-        <div className="flex gap-2 px-4 pb-3.5">
+        <div className="flex flex-wrap gap-2 px-4 pb-3.5">
           <button
             type="button"
             onClick={() => confirmProposal(messageId, proposal.id)}
@@ -89,12 +134,14 @@ export const ProposalCard = ({ messageId, proposal }: Props) => {
           >
             Descartar
           </button>
+          {viewButton}
         </div>
       )}
       {proposal.status === 'done' && (
         <div className="flex items-center gap-1.5 px-4 pb-3.5 text-emerald-400 text-[11px] font-black uppercase tracking-wide">
           <CheckCircle2 size={14} />
           Salvo em {proposal.portfolioName}
+          {viewButton}
         </div>
       )}
       {proposal.status === 'dismissed' && (

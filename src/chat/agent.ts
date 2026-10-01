@@ -4,7 +4,7 @@ import {
   type ChatCompletionParams,
   type ChatMessage,
 } from '../lib/openrouter/client'
-import { SYSTEM_PROMPT } from './systemPrompt'
+import { buildSystemPrompt } from './systemPrompt'
 import { TOOL_DEFINITIONS, executeTool, type Proposal, type ToolContext } from './tools'
 
 export interface AgentTurnInput {
@@ -12,7 +12,7 @@ export interface AgentTurnInput {
   model: string
   history: ChatMessage[]
   userContent: string
-  toolContext: ToolContext
+  toolContext: ToolContext | (() => ToolContext)
   complete?: (params: ChatCompletionParams) => Promise<AssistantMessage>
   maxSteps?: number
 }
@@ -34,13 +34,14 @@ export async function runAgentTurn({
 }: AgentTurnInput): Promise<AgentTurnResult> {
   const messages: ChatMessage[] = [...history, { role: 'user', content: userContent }]
   const proposals: Proposal[] = []
+  const resolveContext = (): ToolContext => (typeof toolContext === 'function' ? toolContext() : toolContext)
 
   for (let step = 0; step < maxSteps; step++) {
     const assistant = await complete({
       apiKey,
       model,
       tools: TOOL_DEFINITIONS,
-      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
+      messages: [{ role: 'system', content: buildSystemPrompt(resolveContext().currentPage) }, ...messages],
     })
     messages.push(assistant)
 
@@ -63,7 +64,7 @@ export async function runAgentTurn({
       if (typeof name !== 'string') {
         result = { content: JSON.stringify({ ok: false, errors: ['Chamada de ferramenta malformada.'] }) }
       } else {
-        result = executeTool(name, toolCall.function.arguments ?? '', toolContext)
+        result = executeTool(name, toolCall.function.arguments ?? '', resolveContext())
       }
 
       if (result.proposal) proposals.push(result.proposal)

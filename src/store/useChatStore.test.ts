@@ -6,6 +6,7 @@ import { OpenRouterError } from '../lib/openrouter/client'
 import { DEFAULT_MODEL } from '../lib/openrouter/models'
 import { useAiSettingsStore } from './useAiSettingsStore'
 import { buildToolContext, useChatStore } from './useChatStore'
+import { useFinancingStore } from './useFinancingStore'
 import { useInvestmentStore } from './useInvestmentStore'
 
 vi.mock('../chat/agent', () => ({ runAgentTurn: vi.fn() }))
@@ -44,6 +45,8 @@ beforeEach(() => {
   runTurn.mockReset()
   useChatStore.setState(useChatStore.getInitialState(), true)
   invest().clearAllData()
+  useFinancingStore.getState().resetToDefaults()
+  invest().setActiveTab('dashboard')
   useAiSettingsStore.setState({ apiKey: 'sk-or-abc', keyStatus: 'valid', model: DEFAULT_MODEL })
 })
 
@@ -231,7 +234,37 @@ describe('buildToolContext', () => {
   })
 })
 
+describe('buildToolContext — navigation', () => {
+  it('reports the current page and navigates through the store', () => {
+    invest().setActiveTab('history')
+    const ctx = buildToolContext()
+    expect(ctx.currentPage).toBe('history')
+    ctx.navigate('financiamento')
+    expect(invest().activeTab).toBe('financiamento')
+    ctx.selectPortfolio('all')
+    expect(invest().activePortfolioId).toBe('all')
+  })
+})
+
 describe('confirmProposal', () => {
+  it('keeps the view on confirm and shows the target portfolio when the user asks to view it', () => {
+    invest().addPortfolio('Aposentadoria')
+    const other = invest().portfolios.find((p) => p.name === 'Aposentadoria')!.id
+    invest().setActivePortfolio('default')
+    seedProposal(proposal({ portfolioId: other, portfolioName: 'Aposentadoria', page: 'dashboard' }))
+    chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activePortfolioId).toBe('default')
+    chat().viewProposal('m1', 'prop-1')
+    expect(invest().activePortfolioId).toBe(other)
+  })
+
+  it('leaves the consolidated view alone after confirming an asset proposal', () => {
+    invest().setActivePortfolio('all')
+    seedProposal(proposal({ page: 'dashboard' }))
+    chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activePortfolioId).toBe('all')
+  })
+
   it('applies the operations, marks the proposal done and tells the user and the model', () => {
     seedProposal(proposal())
     chat().confirmProposal('m1', 'prop-1')
@@ -299,5 +332,219 @@ describe('compose helpers', () => {
     })
     chat().newChat()
     expect(chat()).toMatchObject({ messages: [], history: [], typing: false, draft: 'rascunho' })
+  })
+})
+
+const settingsProposal = (overrides: Partial<Proposal> = {}): Proposal => ({
+  id: 'set-1', portfolioId: '', portfolioName: 'Financiamento', summary: 'Prazo', operations: [], rows: [],
+  status: 'pending', page: 'financiamento',
+  settings: {
+    operations: [{ type: 'update_financing', params: { termMonths: 300 } }],
+    rows: [{ label: 'Prazo (meses)', before: '360', after: '300', mode: 'alterar' }],
+  },
+  ...overrides,
+})
+
+describe('confirmProposal — settings', () => {
+  it('applies the settings and reports it without leaving the current page', () => {
+    seedProposal(settingsProposal())
+    chat().confirmProposal('m1', 'set-1')
+    expect(useFinancingStore.getState().params.termMonths).toBe(300)
+    expect(chat().messages[0].proposals?.[0].status).toBe('done')
+    expect(chat().messages[1].text).toBe('Pronto — 1 alteração salva em Financiamento.')
+    expect(invest().activeTab).toBe('dashboard')
+  })
+  it('opens the owning page only when the user asks to view it', () => {
+    seedProposal(settingsProposal())
+    chat().viewProposal('m1', 'set-1')
+    expect(invest().activeTab).toBe('financiamento')
+    expect(chat().panelOpen).toBe(true)
+    expect(useFinancingStore.getState().params.termMonths).toBe(360)
+    expect(chat().messages[0].proposals?.[0].status).toBe('pending')
+  })
+  it('revalidates against the current data and saves nothing when it no longer applies', () => {
+    seedProposal(settingsProposal({
+      page: 'plano-mensal', portfolioName: 'Plano Mensal',
+      settings: { operations: [{ type: 'remove_monthly_item', kind: 'expense', name: 'Aluguel' }], rows: [] },
+    }))
+    chat().confirmProposal('m1', 'set-1')
+    expect(chat().messages[0].proposals?.[0]).toMatchObject({
+      status: 'failed',
+      error: 'Operação 1 (remove_monthly_item): Não existe despesa chamada "Aluguel".',
+    })
+    expect(invest().activeTab).toBe('dashboard')
+  })
+  it('stays on the current page after confirming an asset proposal and opens the dashboard on view', () => {
+    invest().setActiveTab('history')
+    seedProposal(proposal({ page: 'dashboard' }))
+    chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activeTab).toBe('history')
+    chat().viewProposal('m1', 'prop-1')
+    expect(invest().activeTab).toBe('dashboard')
+  })
+})
+
+describe('saved conversations', () => {
+  const reply = (text: string) => runTurn.mockResolvedValueOnce({ history: [{ role: 'user', content: 'x' }, { role: 'assistant', content: text }], reply: text, proposals: [] })
+
+  it('saves the conversation as it grows, titled and tagged with the current page', async () => {
+    invest().setActiveTab('financiamento')
+    reply('Feito.')
+    await chat().sendMessage('Mude o prazo para 300 meses')
+    expect(chat().conversations).toHaveLength(1)
+    expect(chat().conversations[0]).toMatchObject({ id: chat().conversationId, title: 'Mude o prazo para 300 meses', page: 'financiamento' })
+    expect(chat().conversations[0].messages).toHaveLength(2)
+    reply('Mais uma.')
+    await chat().sendMessage('E a entrada?')
+    expect(chat().conversations).toHaveLength(1)
+    expect(chat().conversations[0].messages).toHaveLength(4)
+  })
+
+  it('writes conversations to localStorage and does not save an empty chat', async () => {
+    chat().newChat()
+    expect(chat().conversations).toEqual([])
+    reply('Olá!')
+    await chat().sendMessage('oi')
+    const stored = JSON.parse(localStorage.getItem('chat-conversations')!).state
+    expect(stored.conversations[0].title).toBe('oi')
+    expect(stored.conversationId).toBe(chat().conversationId)
+    expect(stored.typing).toBeUndefined()
+  })
+
+  it('starts a new chat without losing the saved one, and reopens it', async () => {
+    reply('Olá!')
+    await chat().sendMessage('primeira')
+    const firstId = chat().conversationId!
+    chat().newChat()
+    expect(chat()).toMatchObject({ messages: [], history: [], conversationId: null })
+    reply('Oi de novo')
+    await chat().sendMessage('segunda')
+    expect(chat().conversations.map((c) => c.title)).toEqual(['segunda', 'primeira'])
+    chat().openConversation(firstId)
+    expect(chat().conversationId).toBe(firstId)
+    expect(chat().messages.map((m) => m.text)).toEqual(['primeira', 'Olá!'])
+    // reabrir não mexe na ordem nem na data
+    expect(chat().conversations.map((c) => c.title)).toEqual(['segunda', 'primeira'])
+  })
+
+  it('opens the most recent conversation of the page, or a blank one', async () => {
+    invest().setActiveTab('financiamento')
+    reply('ok')
+    await chat().sendMessage('sobre financiamento')
+    const financingId = chat().conversationId
+    invest().setActiveTab('plano-mensal')
+    chat().openRelevant('plano-mensal')
+    expect(chat()).toMatchObject({ messages: [], conversationId: null })
+    chat().openRelevant('financiamento')
+    expect(chat().conversationId).toBe(financingId)
+    chat().openRelevant('financiamento')
+    expect(chat().conversationId).toBe(financingId)
+  })
+
+  it('does not switch conversations from the launcher while a reply is pending', () => {
+    useChatStore.setState({ typing: true, messages: [{ id: 'u', role: 'user', text: 'oi' }] })
+    const before = chat().conversationId
+    chat().openRelevant('history')
+    expect(chat().conversationId).toBe(before)
+    expect(chat().messages).toHaveLength(1)
+  })
+
+  it('drops a late reply when the user switched conversations meanwhile', async () => {
+    reply('Olá!')
+    await chat().sendMessage('primeira')
+    const firstId = chat().conversationId!
+    chat().newChat()
+    let resolve: (value: Awaited<ReturnType<typeof runAgentTurn>>) => void = () => {}
+    runTurn.mockImplementationOnce(() => new Promise((r) => (resolve = r)))
+    const pending = chat().sendMessage('segunda')
+    await Promise.resolve()
+    chat().openConversation(firstId)
+    resolve({ history: [], reply: 'atrasada', proposals: [] })
+    await pending
+    expect(chat().messages.map((m) => m.text)).toEqual(['primeira', 'Olá!'])
+    expect(chat().typing).toBe(false)
+  })
+
+  it('does not navigate from a turn the user already walked away from', async () => {
+    let toolContext: () => ReturnType<typeof buildToolContext> = buildToolContext
+    let resolve: (value: Awaited<ReturnType<typeof runAgentTurn>>) => void = () => {}
+    runTurn.mockImplementationOnce((options) => {
+      toolContext = options.toolContext as () => ReturnType<typeof buildToolContext>
+      return new Promise((r) => (resolve = r))
+    })
+    const pending = chat().sendMessage('oi')
+    await Promise.resolve()
+    chat().newChat()
+    toolContext().navigate('financiamento')
+    toolContext().selectPortfolio('all')
+    resolve({ history: [], reply: 'atrasada', proposals: [] })
+    await pending
+    expect(invest().activeTab).toBe('dashboard')
+    expect(invest().activePortfolioId).toBe('default')
+    expect(chat().panelOpen).toBe(false)
+  })
+
+  it('updates the conversation page to where it was last used', async () => {
+    invest().setActiveTab('financiamento')
+    reply('ok')
+    await chat().sendMessage('oi')
+    expect(chat().conversations[0].page).toBe('financiamento')
+    invest().setActiveTab('strategy')
+    reply('ok de novo')
+    await chat().sendMessage('e agora')
+    expect(chat().conversations[0].page).toBe('strategy')
+    chat().openRelevant('strategy')
+    expect(chat().messages.map((m) => m.text)).toEqual(['oi', 'ok', 'e agora', 'ok de novo'])
+  })
+
+  it('deletes a conversation and clears the screen when it was the open one', async () => {
+    reply('Olá!')
+    await chat().sendMessage('primeira')
+    chat().deleteConversation(chat().conversationId!)
+    expect(chat()).toMatchObject({ conversations: [], messages: [], conversationId: null })
+  })
+
+  it('moves the open conversation to the page the app navigated to', async () => {
+    reply('ok')
+    await chat().sendMessage('oi')
+    chat().goTo('strategy')
+    expect(chat().conversations[0].page).toBe('strategy')
+  })
+
+  it('keeps chatting when localStorage refuses to save', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    reply('Olá!')
+    await chat().sendMessage('oi')
+    expect(chat().messages.map((m) => m.text)).toEqual(['oi', 'Olá!'])
+    setItem.mockRestore()
+  })
+
+  it('clears every saved conversation', async () => {
+    reply('Olá!')
+    await chat().sendMessage('oi')
+    chat().clearConversations()
+    expect(chat()).toMatchObject({ conversations: [], messages: [], history: [], conversationId: null })
+  })
+})
+
+describe('floating panel', () => {
+  it('opens on the relevant conversation of the current page and closes', async () => {
+    invest().setActiveTab('financiamento')
+    runTurn.mockResolvedValueOnce({ history: [], reply: 'ok', proposals: [] })
+    await chat().sendMessage('sobre financiamento')
+    const id = chat().conversationId
+    chat().newChat()
+    chat().openPanel()
+    expect(chat()).toMatchObject({ panelOpen: true, conversationId: id })
+    chat().closePanel()
+    expect(chat().panelOpen).toBe(false)
+  })
+  it('opens the panel when the assistant sends the user to another page, not on the dashboard', () => {
+    chat().goTo('strategy')
+    expect(chat().panelOpen).toBe(true)
+    chat().goTo('dashboard')
+    expect(chat().panelOpen).toBe(false)
   })
 })

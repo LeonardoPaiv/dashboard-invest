@@ -1,8 +1,13 @@
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { runAgentTurn } from '../chat/agent'
+import { readSettingsSnapshot, writeSettingsSnapshot } from '../chat/appState'
 import { prepareAttachment } from '../chat/attachments'
+import { conversationTitle, forStorage, relevantConversation, saveConversation, type Conversation } from '../chat/conversations'
 import type { Proposal, ToolContext } from '../chat/tools'
 import { collectCategories } from '../domain/assets'
+import { isPageId, type PageId } from '../domain/pages'
+import { runSettingsOperations } from '../domain/settingsOperations'
 import { OpenRouterError, type ChatMessage } from '../lib/openrouter/client'
 import { useAiSettingsStore } from './useAiSettingsStore'
 import { resolveWritablePortfolioId, useInvestmentStore } from './useInvestmentStore'
@@ -29,6 +34,9 @@ interface ChatStore {
   stagedFile: File | null
   composeRequest: number
   session: number
+  conversations: Conversation[]
+  conversationId: string | null
+  panelOpen: boolean
   setDraft: (text: string) => void
   stageFile: (file: File | null) => void
   requestCompose: (text: string) => void
@@ -36,6 +44,14 @@ interface ChatStore {
   sendMessage: (text: string) => Promise<void>
   confirmProposal: (messageId: string, proposalId: string) => void
   dismissProposal: (messageId: string, proposalId: string) => void
+  goTo: (page: PageId) => void
+  viewProposal: (messageId: string, proposalId: string) => void
+  openConversation: (id: string) => void
+  deleteConversation: (id: string) => void
+  openRelevant: (page: PageId) => void
+  clearConversations: () => void
+  openPanel: () => void
+  closePanel: () => void
 }
 
 const DEFAULT_FILE_PROMPT = 'Importe as posições deste arquivo.'
@@ -57,6 +73,11 @@ export function buildToolContext(): ToolContext {
     targetPortfolioId,
     allocationTargets: state.settings.alvos,
     createId: newId,
+    currentPage: isPageId(state.activeTab) ? state.activeTab : 'dashboard',
+    navigate: (page) => useChatStore.getState().goTo(page),
+    selectPortfolio: (id) => useInvestmentStore.getState().setActivePortfolio(id),
+    app: readSettingsSnapshot(),
+    monthlyHistory: state.monthlySnapshots.map(({ date, totalIncome, totalExpense, savings }) => ({ date, totalIncome, totalExpense, savings })),
   }
 }
 
@@ -69,139 +90,311 @@ function errorText(error: unknown): string {
   return 'Não consegui falar com o OpenRouter. Verifique sua conexão e tente de novo.'
 }
 
-export const useChatStore = create<ChatStore>()((set, get) => {
-  const patchProposal = (messageId: string, proposalId: string, changes: Partial<Proposal>) =>
-    set((state) => ({
-      messages: state.messages.map((message) =>
-        message.id !== messageId
-          ? message
-          : { ...message, proposals: message.proposals?.map((p) => (p.id === proposalId ? { ...p, ...changes } : p)) },
-      ),
-    }))
+const safeStorage = {
+  getItem: (name: string) => {
+    try {
+      return localStorage.getItem(name)
+    } catch {
+      return null
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      localStorage.setItem(name, value)
+    } catch {
+      // cota cheia ou storage bloqueado: a conversa segue só na memória
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      localStorage.removeItem(name)
+    } catch {
+      // idem
+    }
+  },
+}
 
-  const findPending = (messageId: string, proposalId: string): Proposal | undefined => {
-    const found = get()
-      .messages.find((m) => m.id === messageId)
-      ?.proposals?.find((p) => p.id === proposalId)
-    return found?.status === 'pending' ? found : undefined
+function memoisedPartialize() {
+  let lastConversations: Conversation[] | undefined
+  let lastConversationId: string | null | undefined
+  let last: Pick<ChatStore, 'conversations' | 'conversationId'> | undefined
+  return (state: ChatStore) => {
+    if (!last || state.conversations !== lastConversations || state.conversationId !== lastConversationId) {
+      lastConversations = state.conversations
+      lastConversationId = state.conversationId
+      last = { conversations: forStorage(state.conversations), conversationId: state.conversationId }
+    }
+    return last
   }
+}
 
-  const note = (content: string): ChatMessage => ({ role: 'user', content: `${APP_NOTE} ${content}` })
+export const useChatStore = create<ChatStore>()(
+  persist(
+    (set, get) => {
+      const patchProposal = (messageId: string, proposalId: string, changes: Partial<Proposal>) =>
+        set((state) => ({
+          messages: state.messages.map((message) =>
+            message.id !== messageId
+              ? message
+              : { ...message, proposals: message.proposals?.map((p) => (p.id === proposalId ? { ...p, ...changes } : p)) },
+          ),
+        }))
 
-  return {
-    messages: [],
-    history: [],
-    typing: false,
-    draft: '',
-    stagedFile: null,
-    composeRequest: 0,
-    session: 0,
+      const findPending = (messageId: string, proposalId: string): Proposal | undefined => {
+        const found = get()
+          .messages.find((m) => m.id === messageId)
+          ?.proposals?.find((p) => p.id === proposalId)
+        return found?.status === 'pending' ? found : undefined
+      }
 
-    setDraft: (draft) => set({ draft }),
-    stageFile: (stagedFile) => set({ stagedFile }),
-    requestCompose: (draft) => set((state) => ({ draft, composeRequest: state.composeRequest + 1 })),
-    newChat: () => set((state) => ({ messages: [], history: [], typing: false, session: state.session + 1 })),
+      const note = (content: string): ChatMessage => ({ role: 'user', content: `${APP_NOTE} ${content}` })
 
-    sendMessage: async (rawText) => {
-      const { typing, stagedFile, session, history } = get()
-      const typed = rawText.trim()
-      if (typing || (typed === '' && !stagedFile)) return
-      const text = typed || DEFAULT_FILE_PROMPT
-      set({ typing: true })
+      return {
+        messages: [],
+        history: [],
+        typing: false,
+        draft: '',
+        stagedFile: null,
+        composeRequest: 0,
+        session: 0,
+        conversations: [],
+        conversationId: null,
+        panelOpen: false,
 
-      let file: ChatFile | undefined
-      let userContent = text
-      if (stagedFile) {
-        try {
-          const prepared = await prepareAttachment(stagedFile)
-          file = { name: prepared.name, meta: prepared.meta }
-          userContent = `${text}\n\n${prepared.promptText}`
-          if (get().session !== session) return
-        } catch (error) {
-          if (get().session !== session) return
+        setDraft: (draft) => set({ draft }),
+        stageFile: (stagedFile) => set({ stagedFile }),
+        requestCompose: (draft) => set((state) => ({ draft, composeRequest: state.composeRequest + 1 })),
+        newChat: () =>
+          set((state) => ({ messages: [], history: [], typing: false, session: state.session + 1, conversationId: null })),
+
+        sendMessage: async (rawText) => {
+          const { typing, stagedFile, session, history } = get()
+          const typed = rawText.trim()
+          if (typing || (typed === '' && !stagedFile)) return
+          const text = typed || DEFAULT_FILE_PROMPT
+          set({ typing: true })
+
+          let file: ChatFile | undefined
+          let userContent = text
+          if (stagedFile) {
+            try {
+              const prepared = await prepareAttachment(stagedFile)
+              file = { name: prepared.name, meta: prepared.meta }
+              userContent = `${text}\n\n${prepared.promptText}`
+              if (get().session !== session) return
+            } catch (error) {
+              if (get().session !== session) return
+              set((state) => ({
+                typing: false,
+                stagedFile: null,
+                messages: [...state.messages, { id: newId(), role: 'assistant', text: (error as Error).message, isError: true }],
+              }))
+              return
+            }
+          }
+
+          const userMessage: UiMessage = { id: newId(), role: 'user', text, ...(file ? { file } : {}) }
+          set((state) => ({ messages: [...state.messages, userMessage], draft: '', stagedFile: null }))
+
+          const { apiKey, model } = useAiSettingsStore.getState()
+          try {
+            const result = await runAgentTurn({ apiKey, model, history, userContent, toolContext: () => {
+                const context = buildToolContext()
+                const live = () => get().session === session
+                return {
+                  ...context,
+                  navigate: (page) => { if (live()) context.navigate(page) },
+                  selectPortfolio: (id) => { if (live()) context.selectPortfolio(id) },
+                }
+              } })
+            if (get().session !== session) return
+            set((state) => ({
+              typing: false,
+              // keep notes added (confirm/dismiss) while this reply was pending
+              history: [...result.history, ...state.history.slice(history.length)],
+              messages: [
+                ...state.messages,
+                {
+                  id: newId(),
+                  role: 'assistant',
+                  text: result.reply,
+                  ...(result.proposals.length > 0 ? { proposals: result.proposals } : {}),
+                },
+              ],
+            }))
+          } catch (error) {
+            if (get().session !== session) return
+            if (error instanceof OpenRouterError && error.status === 401) {
+              useAiSettingsStore.getState().markKeyStatus('invalid')
+              set((state) => ({
+                typing: false,
+                draft: typed,
+                stagedFile,
+                messages: state.messages.filter((m) => m.id !== userMessage.id),
+              }))
+              return
+            }
+            set((state) => ({
+              typing: false,
+              messages: [...state.messages, { id: newId(), role: 'assistant', text: errorText(error), isError: true }],
+            }))
+          }
+        },
+
+        confirmProposal: (messageId, proposalId) => {
+          const proposal = findPending(messageId, proposalId)
+          if (!proposal) return
+          try {
+            if (proposal.settings) {
+              const { snapshot, errors } = runSettingsOperations(readSettingsSnapshot(), proposal.settings.operations)
+              if (errors.length > 0) throw new Error(errors.join('\n'))
+              writeSettingsSnapshot(snapshot)
+            } else {
+              useInvestmentStore.getState().applyAssetOperations(proposal.portfolioId, proposal.operations)
+            }
+          } catch (error) {
+            const message = (error as Error).message
+            patchProposal(messageId, proposalId, { status: 'failed', error: message })
+            set((state) => ({
+              history: [...state.history, note(`A proposta ${proposalId} não pôde ser salva: ${message}`)],
+            }))
+            return
+          }
+          patchProposal(messageId, proposalId, { status: 'done' })
+          const count = proposal.settings ? proposal.settings.operations.length : proposal.operations.length
           set((state) => ({
-            typing: false,
-            stagedFile: null,
-            messages: [...state.messages, { id: newId(), role: 'assistant', text: (error as Error).message, isError: true }],
+            messages: [
+              ...state.messages,
+              {
+                id: newId(),
+                role: 'assistant',
+                text: proposal.settings
+                  ? `Pronto — ${count} ${count === 1 ? 'alteração salva' : 'alterações salvas'} em ${proposal.portfolioName}.`
+                  : `Pronto — ${count} ${count === 1 ? 'alteração salva' : 'alterações salvas'} em ${proposal.portfolioName}. O gráfico e a lista já refletem a mudança.`,
+              },
+            ],
+            history: [...state.history, note(`O usuário confirmou a proposta ${proposalId}; as alterações foram salvas.`)],
           }))
-          return
-        }
-      }
+        },
 
-      const userMessage: UiMessage = { id: newId(), role: 'user', text, ...(file ? { file } : {}) }
-      set((state) => ({ messages: [...state.messages, userMessage], draft: '', stagedFile: null }))
+        viewProposal: (messageId, proposalId) => {
+          const proposal = get()
+            .messages.find((m) => m.id === messageId)
+            ?.proposals?.find((p) => p.id === proposalId)
+          if (!proposal?.page) return
+          const investment = useInvestmentStore.getState()
+          if (
+            !proposal.settings &&
+            investment.activePortfolioId !== 'all' &&
+            investment.activePortfolioId !== proposal.portfolioId &&
+            investment.portfolios.some((p) => p.id === proposal.portfolioId)
+          ) {
+            investment.setActivePortfolio(proposal.portfolioId)
+          }
+          get().goTo(proposal.page)
+        },
 
-      const { apiKey, model } = useAiSettingsStore.getState()
-      try {
-        const result = await runAgentTurn({ apiKey, model, history, userContent, toolContext: buildToolContext() })
-        if (get().session !== session) return
-        set((state) => ({
-          typing: false,
-          // keep notes added (confirm/dismiss) while this reply was pending
-          history: [...result.history, ...state.history.slice(history.length)],
-          messages: [
-            ...state.messages,
-            {
-              id: newId(),
-              role: 'assistant',
-              text: result.reply,
-              ...(result.proposals.length > 0 ? { proposals: result.proposals } : {}),
-            },
-          ],
-        }))
-      } catch (error) {
-        if (get().session !== session) return
-        if (error instanceof OpenRouterError && error.status === 401) {
-          useAiSettingsStore.getState().markKeyStatus('invalid')
+        dismissProposal: (messageId, proposalId) => {
+          if (!findPending(messageId, proposalId)) return
+          patchProposal(messageId, proposalId, { status: 'dismissed' })
           set((state) => ({
-            typing: false,
-            draft: typed,
-            stagedFile,
-            messages: state.messages.filter((m) => m.id !== userMessage.id),
+            history: [...state.history, note(`O usuário descartou a proposta ${proposalId}; nada foi salvo.`)],
           }))
-          return
+        },
+
+        openConversation: (id) => {
+          const found = get().conversations.find((c) => c.id === id)
+          if (!found) return
+          set((state) => ({
+            messages: found.messages,
+            history: found.history,
+            conversationId: found.id,
+            typing: false,
+            session: state.session + 1,
+          }))
+        },
+
+        deleteConversation: (id) =>
+          set((state) => ({
+            conversations: state.conversations.filter((c) => c.id !== id),
+            ...(state.conversationId === id
+              ? { messages: [], history: [], conversationId: null, typing: false, session: state.session + 1 }
+              : {}),
+          })),
+
+        openRelevant: (page) => {
+          const state = get()
+          if (state.typing) return
+          const open = state.conversations.find((c) => c.id === state.conversationId)
+          if (state.messages.length > 0 && open?.page === page) return
+          const match = relevantConversation(state.conversations, page)
+          if (match) get().openConversation(match.id)
+          else if (state.messages.length > 0) get().newChat()
+        },
+
+        clearConversations: () =>
+          set((state) => ({
+            conversations: [], messages: [], history: [], conversationId: null, typing: false, session: state.session + 1,
+          })),
+
+        goTo: (page) => {
+          useInvestmentStore.getState().setActiveTab(page)
+          set((state) => ({
+            conversations: state.conversations.map((c) => (c.id === state.conversationId ? { ...c, page } : c)),
+            panelOpen: page !== 'dashboard',
+          }))
+        },
+
+        openPanel: () => {
+          get().openRelevant(currentPage())
+          set({ panelOpen: true })
+        },
+        closePanel: () => set({ panelOpen: false }),
+      }
+    },
+    {
+      name: 'chat-conversations',
+      storage: createJSONStorage(() => safeStorage),
+      partialize: memoisedPartialize(),
+      merge: (persisted, current) => {
+        const saved = (persisted || {}) as Partial<Pick<ChatStore, 'conversations' | 'conversationId'>>
+        const conversations = Array.isArray(saved.conversations) ? saved.conversations : []
+        const open = conversations.find((c) => c.id === saved.conversationId)
+        return {
+          ...current,
+          conversations,
+          conversationId: open ? open.id : null,
+          messages: open ? open.messages : [],
+          history: open ? open.history : [],
         }
-        set((state) => ({
-          typing: false,
-          messages: [...state.messages, { id: newId(), role: 'assistant', text: errorText(error), isError: true }],
-        }))
-      }
+      },
     },
+  ),
+)
 
-    confirmProposal: (messageId, proposalId) => {
-      const proposal = findPending(messageId, proposalId)
-      if (!proposal) return
-      try {
-        useInvestmentStore.getState().applyAssetOperations(proposal.portfolioId, proposal.operations)
-      } catch (error) {
-        const message = (error as Error).message
-        patchProposal(messageId, proposalId, { status: 'failed', error: message })
-        set((state) => ({
-          history: [...state.history, note(`A proposta ${proposalId} não pôde ser salva: ${message}`)],
-        }))
-        return
-      }
-      patchProposal(messageId, proposalId, { status: 'done' })
-      const count = proposal.operations.length
-      set((state) => ({
-        messages: [
-          ...state.messages,
-          {
-            id: newId(),
-            role: 'assistant',
-            text: `Pronto — ${count} ${count === 1 ? 'alteração salva' : 'alterações salvas'} em ${proposal.portfolioName}. O gráfico e a lista já refletem a mudança.`,
-          },
-        ],
-        history: [...state.history, note(`O usuário confirmou a proposta ${proposalId}; as alterações foram salvas.`)],
-      }))
-    },
+const currentPage = (): PageId => {
+  const tab = useInvestmentStore.getState().activeTab
+  return isPageId(tab) ? tab : 'dashboard'
+}
 
-    dismissProposal: (messageId, proposalId) => {
-      if (!findPending(messageId, proposalId)) return
-      patchProposal(messageId, proposalId, { status: 'dismissed' })
-      set((state) => ({
-        history: [...state.history, note(`O usuário descartou a proposta ${proposalId}; nada foi salvo.`)],
-      }))
-    },
-  }
+useChatStore.subscribe((state, previous) => {
+  if (state.messages === previous.messages && state.history === previous.history) return
+  if (state.messages.length === 0) return
+  const existing = state.conversations.find((c) => c.id === state.conversationId)
+  // acabou de abrir uma conversa salva: nada mudou de fato
+  if (existing && existing.messages === state.messages && existing.history === state.history) return
+  const id = state.conversationId ?? newId()
+  const now = new Date().toISOString()
+  useChatStore.setState({
+    conversationId: id,
+    conversations: saveConversation(state.conversations, {
+      id,
+      title: conversationTitle(state.messages),
+      page: currentPage(),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+      messages: state.messages,
+      history: state.history,
+    }),
+  })
 })

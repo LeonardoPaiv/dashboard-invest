@@ -9,6 +9,7 @@ import { TaxModule } from './components/TaxModule.tsx'
 import { DataManagement } from './components/DataManagement.tsx'
 import { History } from './components/History'
 import { FinancingModule } from './components/financing/FinancingModule'
+import { FloatingChat } from './components/home/FloatingChat'
 import ErrorBoundary from './components/ErrorBoundary'
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
             {activeTab === 'history' && <History />}
           </div>
         </main>
+        <FloatingChat />
       </div>
     </ErrorBoundary>
   )

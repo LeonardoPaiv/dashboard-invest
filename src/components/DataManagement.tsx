@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Download, Upload, Trash2, Database, AlertTriangle, CheckCircle, RefreshCcw, FileText } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
+import { useChatStore } from '../store/useChatStore';
 
 export const DataManagement = () => {
   const store = useInvestmentStore();
@@ -91,6 +92,7 @@ export const DataManagement = () => {
   const handleClearAll = () => {
     if (confirm("ATENÇÃO: Isso irá DELETAR PERMANENTEMENTE todos os seus dados (portfólio, metas, histórico, etc). Esta ação não pode ser desfeita. Tem certeza?")) {
       store.clearAllData();
+      useChatStore.getState().clearConversations();
       
       const emptyData = {
         portfolio: null,
