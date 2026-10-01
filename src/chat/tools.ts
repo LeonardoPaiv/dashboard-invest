@@ -6,6 +6,7 @@ import {
   type PreviewRow,
   type Workspace,
 } from '../domain/operations'
+import { PAGES, isPageId, pageLabel, type PageId } from '../domain/pages'
 import type { ToolDefinition } from '../lib/openrouter/client'
 import type { PortfolioData } from '../store/useInvestmentStore'
 
@@ -29,6 +30,9 @@ export interface ToolContext {
   targetPortfolioId: string
   allocationTargets: Record<string, number>
   createId: () => string
+  currentPage: PageId
+  navigate: (page: PageId) => void
+  selectPortfolio: (portfolioId: string) => void
 }
 
 export interface ToolResult {
@@ -92,6 +96,29 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
           },
         },
         required: ['summary', 'operations'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'navigate',
+      description:
+        'Leva o usuário para outra página do app e, se informado, troca a carteira exibida. Use quando o assunto ou a alteração pertence a outra página. Efeito imediato, sem confirmação.',
+      parameters: {
+        type: 'object',
+        properties: {
+          page: {
+            type: 'string',
+            enum: PAGES.map((page) => page.id),
+            description: PAGES.map((page) => `${page.id}: ${page.about}`).join('; '),
+          },
+          portfolio: {
+            type: 'string',
+            description: 'Opcional: nome da carteira a exibir, ou "todas" para a visão consolidada.',
+          },
+        },
+        required: ['page'],
       },
     },
   },
@@ -201,6 +228,36 @@ function proposeChanges(args: any, context: ToolContext): ToolResult {
   }
 }
 
+function navigateTo(args: any, context: ToolContext): ToolResult {
+  if (!isPageId(args?.page)) {
+    return failure([`Página desconhecida: "${String(args?.page)}". Use uma de: ${PAGES.map((p) => p.id).join(', ')}.`])
+  }
+  const wanted = text(args?.portfolio)
+  let portfolioId: string | undefined
+  let portfolioName: string | undefined
+  if (wanted) {
+    if (['todas', 'all'].includes(wanted.toLowerCase())) {
+      portfolioId = 'all'
+      portfolioName = 'Todas as carteiras'
+    } else {
+      const found = context.workspace.portfolios.find((p) => p.name.trim().toLowerCase() === wanted.toLowerCase())
+      if (!found) return failure([`Carteira "${wanted}" não encontrada.`])
+      portfolioId = found.id
+      portfolioName = found.name
+    }
+  }
+  if (portfolioId) context.selectPortfolio(portfolioId)
+  context.navigate(args.page)
+  return {
+    content: JSON.stringify({
+      ok: true,
+      page: args.page,
+      label: pageLabel(args.page),
+      ...(portfolioName ? { portfolio: portfolioName } : {}),
+    }),
+  }
+}
+
 export function executeTool(name: string, rawArguments: unknown, context: ToolContext): ToolResult {
   let args: unknown
 
@@ -220,5 +277,6 @@ export function executeTool(name: string, rawArguments: unknown, context: ToolCo
 
   if (name === 'get_portfolio') return getPortfolio(context)
   if (name === 'propose_changes') return proposeChanges(args, context)
+  if (name === 'navigate') return navigateTo(args, context)
   return failure([`Ferramenta desconhecida: ${name}.`])
 }

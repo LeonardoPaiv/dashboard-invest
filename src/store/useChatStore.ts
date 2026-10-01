@@ -3,6 +3,7 @@ import { runAgentTurn } from '../chat/agent'
 import { prepareAttachment } from '../chat/attachments'
 import type { Proposal, ToolContext } from '../chat/tools'
 import { collectCategories } from '../domain/assets'
+import { isPageId, type PageId } from '../domain/pages'
 import { OpenRouterError, type ChatMessage } from '../lib/openrouter/client'
 import { useAiSettingsStore } from './useAiSettingsStore'
 import { resolveWritablePortfolioId, useInvestmentStore } from './useInvestmentStore'
@@ -36,6 +37,7 @@ interface ChatStore {
   sendMessage: (text: string) => Promise<void>
   confirmProposal: (messageId: string, proposalId: string) => void
   dismissProposal: (messageId: string, proposalId: string) => void
+  goTo: (page: PageId) => void
 }
 
 const DEFAULT_FILE_PROMPT = 'Importe as posições deste arquivo.'
@@ -57,6 +59,9 @@ export function buildToolContext(): ToolContext {
     targetPortfolioId,
     allocationTargets: state.settings.alvos,
     createId: newId,
+    currentPage: isPageId(state.activeTab) ? state.activeTab : 'dashboard',
+    navigate: (page) => useChatStore.getState().goTo(page),
+    selectPortfolio: (id) => useInvestmentStore.getState().setActivePortfolio(id),
   }
 }
 
@@ -133,7 +138,7 @@ export const useChatStore = create<ChatStore>()((set, get) => {
 
       const { apiKey, model } = useAiSettingsStore.getState()
       try {
-        const result = await runAgentTurn({ apiKey, model, history, userContent, toolContext: buildToolContext() })
+        const result = await runAgentTurn({ apiKey, model, history, userContent, toolContext: buildToolContext })
         if (get().session !== session) return
         set((state) => ({
           typing: false,
@@ -203,5 +208,7 @@ export const useChatStore = create<ChatStore>()((set, get) => {
         history: [...state.history, note(`O usuário descartou a proposta ${proposalId}; nada foi salvo.`)],
       }))
     },
+
+    goTo: (page) => useInvestmentStore.getState().setActiveTab(page),
   }
 })

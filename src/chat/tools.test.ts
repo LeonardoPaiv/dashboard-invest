@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createEmptyPortfolioData, type Portfolio, type PortfolioData } from '../store/useInvestmentStore'
 import { TOOL_DEFINITIONS, executeTool, type ToolContext } from './tools'
 
@@ -22,12 +22,15 @@ const context = (): ToolContext => {
     targetPortfolioId: 'p1',
     allocationTargets: { fiis: 30, acoes: 40, renda_fixa: 30 },
     createId: () => 'prop-1',
+    currentPage: 'dashboard',
+    navigate: vi.fn(),
+    selectPortfolio: vi.fn(),
   }
 }
 
 describe('TOOL_DEFINITIONS', () => {
-  it('exposes exactly the read tool and the proposal tool', () => {
-    expect(TOOL_DEFINITIONS.map((t) => t.function.name)).toEqual(['get_portfolio', 'propose_changes'])
+  it('exposes the read, proposal and navigation tools', () => {
+    expect(TOOL_DEFINITIONS.map((t) => t.function.name)).toEqual(['get_portfolio', 'propose_changes', 'navigate'])
   })
 })
 
@@ -191,5 +194,30 @@ describe('executeTool — propose_changes', () => {
     const result = executeTool('get_portfolio', '{}', ctx)
     expect(result.proposal).toBeUndefined()
     expect(JSON.parse(result.content)).toEqual({ ok: false, errors: ['Erro interno ao executar a ferramenta.'] })
+  })
+})
+
+describe('executeTool — navigate', () => {
+  it('navigates to a known page', () => {
+    const ctx = context()
+    const result = executeTool('navigate', '{"page":"financiamento"}', ctx)
+    expect(ctx.navigate).toHaveBeenCalledWith('financiamento')
+    expect(ctx.selectPortfolio).not.toHaveBeenCalled()
+    expect(JSON.parse(result.content)).toEqual({ ok: true, page: 'financiamento', label: 'Financiamento' })
+  })
+  it('switches the displayed portfolio by name, case-insensitively, and accepts "todas"', () => {
+    const ctx = context()
+    executeTool('navigate', '{"page":"dashboard","portfolio":"carteira principal"}', ctx)
+    expect(ctx.selectPortfolio).toHaveBeenCalledWith('p1')
+    executeTool('navigate', '{"page":"dashboard","portfolio":"Todas"}', ctx)
+    expect(ctx.selectPortfolio).toHaveBeenLastCalledWith('all')
+  })
+  it('rejects unknown pages and portfolios without side effects', () => {
+    const ctx = context()
+    expect(JSON.parse(executeTool('navigate', '{"page":"lua"}', ctx).content).ok).toBe(false)
+    const bad = JSON.parse(executeTool('navigate', '{"page":"dashboard","portfolio":"Inexistente"}', ctx).content)
+    expect(bad).toEqual({ ok: false, errors: ['Carteira "Inexistente" não encontrada.'] })
+    expect(ctx.navigate).not.toHaveBeenCalled()
+    expect(ctx.selectPortfolio).not.toHaveBeenCalled()
   })
 })

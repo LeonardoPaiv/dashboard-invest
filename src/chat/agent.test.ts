@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { OpenRouterError, type AssistantMessage, type ChatCompletionParams } from '../lib/openrouter/client'
 import { createEmptyPortfolioData } from '../store/useInvestmentStore'
 import { runAgentTurn } from './agent'
-import { SYSTEM_PROMPT } from './systemPrompt'
+import { buildSystemPrompt } from './systemPrompt'
 import { TOOL_DEFINITIONS, type ToolContext } from './tools'
 
 const toolContext = (): ToolContext => ({
@@ -23,6 +23,9 @@ const toolContext = (): ToolContext => ({
   targetPortfolioId: 'p1',
   allocationTargets: {},
   createId: () => 'prop-1',
+  currentPage: 'dashboard',
+  navigate: vi.fn(),
+  selectPortfolio: vi.fn(),
 })
 
 const call = (id: string, name: string, args: unknown) => ({
@@ -54,7 +57,7 @@ describe('runAgentTurn', () => {
       model: 'm/x',
       tools: TOOL_DEFINITIONS,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: buildSystemPrompt('dashboard') },
         { role: 'user', content: 'oi' },
       ],
     })
@@ -199,5 +202,15 @@ describe('runAgentTurn', () => {
     const toolMessages = result.history.filter((m) => m.role === 'tool')
     expect(toolMessages).toHaveLength(1)
     expect(JSON.parse(toolMessages[0].content)).toEqual({ ok: false, errors: ['Chamada de ferramenta malformada.'] })
+  })
+
+  it('resolves a tool-context factory again for every tool call', async () => {
+    const factory = vi.fn(toolContext)
+    const complete = scripted(
+      { role: 'assistant', content: null, tool_calls: [call('c1', 'get_portfolio', {}), call('c2', 'get_portfolio', {})] },
+      { role: 'assistant', content: 'ok' },
+    )
+    await runAgentTurn({ ...base, toolContext: factory, complete })
+    expect(factory.mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 })

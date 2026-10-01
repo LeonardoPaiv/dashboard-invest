@@ -231,6 +231,18 @@ describe('buildToolContext', () => {
   })
 })
 
+describe('buildToolContext — navigation', () => {
+  it('reports the current page and navigates through the store', () => {
+    invest().setActiveTab('history')
+    const ctx = buildToolContext()
+    expect(ctx.currentPage).toBe('history')
+    ctx.navigate('financiamento')
+    expect(invest().activeTab).toBe('financiamento')
+    ctx.selectPortfolio('all')
+    expect(invest().activePortfolioId).toBe('all')
+  })
+})
+
 describe('confirmProposal', () => {
   it('applies the operations, marks the proposal done and tells the user and the model', () => {
     seedProposal(proposal())
