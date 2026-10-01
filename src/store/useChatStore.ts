@@ -36,6 +36,7 @@ interface ChatStore {
   session: number
   conversations: Conversation[]
   conversationId: string | null
+  panelOpen: boolean
   setDraft: (text: string) => void
   stageFile: (file: File | null) => void
   requestCompose: (text: string) => void
@@ -48,6 +49,8 @@ interface ChatStore {
   deleteConversation: (id: string) => void
   openRelevant: (page: PageId) => void
   clearConversations: () => void
+  openPanel: () => void
+  closePanel: () => void
 }
 
 const DEFAULT_FILE_PROMPT = 'Importe as posições deste arquivo.'
@@ -141,6 +144,7 @@ export const useChatStore = create<ChatStore>()(
         session: 0,
         conversations: [],
         conversationId: null,
+        panelOpen: false,
 
         setDraft: (draft) => set({ draft }),
         stageFile: (stagedFile) => set({ stagedFile }),
@@ -298,8 +302,15 @@ export const useChatStore = create<ChatStore>()(
           useInvestmentStore.getState().setActiveTab(page)
           set((state) => ({
             conversations: state.conversations.map((c) => (c.id === state.conversationId ? { ...c, page } : c)),
+            panelOpen: page !== 'dashboard',
           }))
         },
+
+        openPanel: () => {
+          get().openRelevant(currentPage())
+          set({ panelOpen: true })
+        },
+        closePanel: () => set({ panelOpen: false }),
       }
     },
     {

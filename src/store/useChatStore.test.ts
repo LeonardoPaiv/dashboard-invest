@@ -468,3 +468,23 @@ describe('saved conversations', () => {
     expect(chat()).toMatchObject({ conversations: [], messages: [], history: [], conversationId: null })
   })
 })
+
+describe('floating panel', () => {
+  it('opens on the relevant conversation of the current page and closes', async () => {
+    invest().setActiveTab('financiamento')
+    runTurn.mockResolvedValueOnce({ history: [], reply: 'ok', proposals: [] })
+    await chat().sendMessage('sobre financiamento')
+    const id = chat().conversationId
+    chat().newChat()
+    chat().openPanel()
+    expect(chat()).toMatchObject({ panelOpen: true, conversationId: id })
+    chat().closePanel()
+    expect(chat().panelOpen).toBe(false)
+  })
+  it('opens the panel when the assistant sends the user to another page, not on the dashboard', () => {
+    chat().goTo('strategy')
+    expect(chat().panelOpen).toBe(true)
+    chat().goTo('dashboard')
+    expect(chat().panelOpen).toBe(false)
+  })
+})

@@ -1,6 +1,6 @@
 # Assistente (OpenRouter)
 
-A página principal é dividida em dois painéis: o **Assistente** (chat) e a **carteira** (composição e ativos).
+No **Dashboard** o **Assistente** (chat) fica ancorado ao lado da **carteira** (composição e ativos). Nas demais páginas ele vira um botão flutuante no canto inferior direito, que abre o mesmo chat em um painel flutuante. Só uma instância do chat fica montada por vez.
 
 ## Chave da API
 
@@ -23,8 +23,33 @@ O padrão é `stealth/space-bunny-alpha`. O menu do modelo lista alguns predefin
 | Reclassificar | "TAEE11 é ação, não FII" |
 | Gerenciar categorias | "Cria a categoria ETFs e move IVVB11 para ela" |
 | Analisar | "Como está minha alocação?", "Como rebalancear para minha meta?" |
+| Consultar o app | "Quanto falta para minha meta?", "Como está meu financiamento?" |
+| Configurar o app | "Muda a meta de FIIs para 30%", "Adiciona um aporte extra no financiamento" |
+| Ir para uma página | "Me leva para o plano mensal" |
 
-Toda alteração aparece primeiro como **prévia**. Nada é salvo até você clicar em **Confirmar**.
+Toda alteração aparece primeiro como **prévia**. Nada é salvo até você clicar em **Confirmar**. Ao confirmar uma prévia, o app leva você à página afetada (e abre o painel flutuante, se não for o Dashboard).
+
+## Ferramentas
+
+| Ferramenta | O que faz |
+| --- | --- |
+| `get_portfolio` | Lê a carteira em exibição (ativos, categorias, totais) |
+| `propose_changes` | Propõe alterações em ativos e categorias, com prévia |
+| `navigate` | Leva o usuário a outra página do app |
+| `get_app_data` | Lê dados do app: metas, estratégia, plano mensal, financiamento, projeção, histórico |
+| `propose_settings` | Propõe mudanças de configuração, com prévia |
+
+## O que o Assistente configura
+
+Carteiras (criar, renomear, excluir), metas de alocação, texto da estratégia, aporte, itens e categorias do plano mensal, parâmetros, presets, amortização extra e aportes únicos do financiamento, e parâmetros da projeção.
+
+Continuam fora: listas personalizadas, ativos do exterior do Imposto de Renda e a chave/modelo da API.
+
+## Conversas salvas
+
+- As conversas ficam no `localStorage` (item `chat-conversations`), até 30; anexos longos são encurtados.
+- Não entram no backup JSON e são apagadas por "apagar tudo" no Menu de Dados.
+- O botão **Conversas** no cabeçalho lista, abre e apaga conversas. Ao abrir o chat, a conversa mais relevante para a página atual é retomada.
 
 ## Categorias
 
@@ -34,7 +59,6 @@ Toda alteração aparece primeiro como **prévia**. Nada é salvo até você cli
 
 - Arquivos são lidos no navegador e enviados como texto ao modelo: até 300 linhas por aba e 60 000 caracteres no total. Acima disso o arquivo é truncado e o Assistente avisa.
 - PDF não é suportado.
-- A conversa não é salva: recarregar a página começa uma nova.
 - Com a visão "Todas as carteiras" ativa, as alterações são gravadas na primeira carteira; o cartão de prévia mostra o destino.
 
 ## Código
@@ -42,8 +66,10 @@ Toda alteração aparece primeiro como **prévia**. Nada é salvo até você cli
 | Arquivo | Papel |
 | --- | --- |
 | `src/lib/openrouter/client.ts` | Chamadas HTTP ao OpenRouter |
-| `src/chat/tools.ts` | Ferramentas `get_portfolio` e `propose_changes` |
+| `src/chat/tools.ts` | Ferramentas `get_portfolio`, `propose_changes`, `navigate`, `get_app_data` e `propose_settings` |
 | `src/chat/agent.ts` | Loop de tool calling |
 | `src/chat/attachments.ts` | Leitura de planilhas |
 | `src/domain/operations.ts` | Validação e aplicação das operações |
 | `src/store/useChatStore.ts` | Estado do chat, confirmar e descartar |
+| `src/components/home/FloatingChat.tsx` | Botão e painel flutuantes fora do Dashboard |
+| `src/components/home/ConversationMenu.tsx` | Menu de conversas salvas |

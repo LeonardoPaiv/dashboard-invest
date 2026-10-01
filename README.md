@@ -30,6 +30,12 @@ There is no column-mapping wizard. Attach any `.csv`, `.xlsx` or `.xls` broker e
 - classifies each asset (including `…11` tickers that are units, not FIIs);
 - shows a preview of every change, which is only saved after you click **Confirmar**.
 
+### Assistant tools and settings
+
+The assistant has five tools: `get_portfolio` (reads the portfolio in view), `propose_changes` (asset and category previews), `navigate` (takes you to another page), `get_app_data` (reads targets, strategy, monthly plan, financing, projection and history) and `propose_settings` (settings previews). It can configure portfolios (create/rename/delete), allocation targets, strategy text, contribution, monthly plan items and categories, financing parameters/presets/extra amortization/lump sums and projection parameters. Custom lists, foreign assets in Income Tax and the API key/model stay out of its reach.
+
+On the Dashboard the chat is docked next to the portfolio; on every other page a floating launcher in the bottom-right corner opens the same chat in a floating panel. Confirming a preview takes you to the affected page. Conversations are saved in `localStorage` (`chat-conversations`, up to 30, long attachments shortened), are not part of the JSON backup and are erased by "clear all data".
+
 You need your own [OpenRouter](https://openrouter.ai/keys) API key; it is stored only in your browser. See [`docs/openrouter.md`](./docs/openrouter.md). A sample file is available at `public/modelo_importacao.xlsx`.
 
 ---

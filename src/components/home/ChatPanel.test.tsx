@@ -38,7 +38,7 @@ describe('ChatPanel', () => {
 
   it('shows the empty state with helper cards when the key is valid', () => {
     render(<ChatPanel />)
-    expect(screen.getByText('Como posso ajudar com sua carteira?')).toBeInTheDocument()
+    expect(screen.getByText('Como posso ajudar?')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Registrar compra/ })).toBeInTheDocument()
     expect(
       screen.getByText('Nada é salvo sem sua confirmação. Respostas podem conter erros — confira os valores.'),
@@ -89,12 +89,12 @@ describe('ChatPanel', () => {
       ],
     })
     render(<ChatPanel />)
-    expect(screen.getByText('Importa o extrato')).toBeInTheDocument()
+    expect(screen.getAllByText('Importa o extrato').length).toBeGreaterThan(0)
     expect(screen.getByText('extrato.xlsx')).toBeInTheDocument()
     expect(screen.getByText('Planilha · 3 abas')).toBeInTheDocument()
     expect(screen.getByText('Encontrei 4 posições.')).toBeInTheDocument()
     expect(screen.getByText('space-bunny-alpha está analisando…')).toBeInTheDocument()
-    expect(screen.queryByText('Como posso ajudar com sua carteira?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Como posso ajudar?')).not.toBeInTheDocument()
   })
 
   it('shows a pending proposal and saves it on confirm', async () => {
@@ -166,5 +166,15 @@ describe('ChatPanel', () => {
     await userEvent.click(within(card).getByRole('button', { name: 'Confirmar' }))
     expect(useInvestmentStore.getState().contributionAmount).toBe(2500)
     expect(within(card).getByText('Salvo em Estratégia')).toBeInTheDocument()
+  })
+  it('shows the open conversation title and the conversations button', () => {
+    useChatStore.setState({
+      conversationId: 'c1',
+      conversations: [{ id: 'c1', title: 'Metas 40/40/20', page: 'strategy', createdAt: '2026-01-01', updatedAt: '2026-01-01', messages: [], history: [] }],
+    })
+    render(<ChatPanel />)
+    expect(screen.getByText('Metas 40/40/20')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Conversas' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Fechar assistente' })).not.toBeInTheDocument()
   })
 })

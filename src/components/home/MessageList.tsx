@@ -67,10 +67,10 @@ export const MessageList = () => {
       {isEmpty && (
         <div className="h-full flex flex-col items-center justify-center gap-6 text-center max-w-[520px] mx-auto">
           <div>
-            <h4 className="text-2xl font-black tracking-tight">Como posso ajudar com sua carteira?</h4>
+            <h4 className="text-2xl font-black tracking-tight">Como posso ajudar?</h4>
             <p className="mt-2 text-[13px] text-white/40">
-              Envie qualquer extrato ou planilha de corretora — eu identifico as colunas, classifico os ativos e mostro
-              uma prévia antes de salvar.
+              Envie um extrato ou planilha, ou peça para ajustar metas, plano mensal, financiamento e projeção — eu
+              mostro uma prévia antes de salvar.
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
