@@ -214,6 +214,7 @@ interface InvestmentStore {
     estrategia: string
     alvos: AllocationTargets
   }
+  /** Snapshots antigos da Estratégia; a página não os usa mais, mas seguem no armazenamento e nos backups. */
   snapshots: Snapshot[]
   customLists: any[]
   equityHistory: { date: string; total: number }[]
@@ -229,9 +230,6 @@ interface InvestmentStore {
   // Backward-compatible actions
   setPortfolio: (data: PortfolioData) => void
   setSettings: (settings: any) => void
-  addSnapshot: (snapshot: Snapshot) => void
-  deleteSnapshot: (id: string) => void
-  updateSnapshotResult: (id: string, result: string) => void
   addCustomList: (name: string) => void
   deleteCustomList: (id: string) => void
   addTickerToList: (listId: string, ticker: string) => void
@@ -406,11 +404,6 @@ export const useInvestmentStore = create<InvestmentStore>()(
       }),
 
       setSettings: (settings) => set({ settings }),
-      addSnapshot: (snapshot) => set((state) => ({ snapshots: [snapshot, ...state.snapshots] })),
-      deleteSnapshot: (id) => set((state) => ({ snapshots: state.snapshots.filter((s) => s.id !== id) })),
-      updateSnapshotResult: (id, result) => set((state) => ({
-        snapshots: state.snapshots.map((s) => (s.id === id ? { ...s, result } : s))
-      })),
       addCustomList: (name) => set((state) => ({
         customLists: [...state.customLists, { id: crypto.randomUUID(), name, items: [] }]
       })),
