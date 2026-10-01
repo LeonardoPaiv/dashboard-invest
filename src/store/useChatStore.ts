@@ -107,6 +107,7 @@ export const useChatStore = create<ChatStore>()((set, get) => {
       const typed = rawText.trim()
       if (typing || (typed === '' && !stagedFile)) return
       const text = typed || DEFAULT_FILE_PROMPT
+      set({ typing: true })
 
       let file: ChatFile | undefined
       let userContent = text
@@ -115,8 +116,11 @@ export const useChatStore = create<ChatStore>()((set, get) => {
           const prepared = await prepareAttachment(stagedFile)
           file = { name: prepared.name, meta: prepared.meta }
           userContent = `${text}\n\n${prepared.promptText}`
+          if (get().session !== session) return
         } catch (error) {
+          if (get().session !== session) return
           set((state) => ({
+            typing: false,
             stagedFile: null,
             messages: [...state.messages, { id: newId(), role: 'assistant', text: (error as Error).message, isError: true }],
           }))
@@ -125,7 +129,7 @@ export const useChatStore = create<ChatStore>()((set, get) => {
       }
 
       const userMessage: UiMessage = { id: newId(), role: 'user', text, ...(file ? { file } : {}) }
-      set((state) => ({ messages: [...state.messages, userMessage], draft: '', stagedFile: null, typing: true }))
+      set((state) => ({ messages: [...state.messages, userMessage], draft: '', stagedFile: null }))
 
       const { apiKey, model } = useAiSettingsStore.getState()
       try {
@@ -133,7 +137,8 @@ export const useChatStore = create<ChatStore>()((set, get) => {
         if (get().session !== session) return
         set((state) => ({
           typing: false,
-          history: result.history,
+          // keep notes added (confirm/dismiss) while this reply was pending
+          history: [...result.history, ...state.history.slice(history.length)],
           messages: [
             ...state.messages,
             {

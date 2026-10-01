@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { runAgentTurn } from '../chat/agent'
+import { prepareAttachment } from '../chat/attachments'
 import type { Proposal } from '../chat/tools'
 import { OpenRouterError } from '../lib/openrouter/client'
 import { DEFAULT_MODEL } from '../lib/openrouter/models'
@@ -8,8 +9,20 @@ import { buildToolContext, useChatStore } from './useChatStore'
 import { useInvestmentStore } from './useInvestmentStore'
 
 vi.mock('../chat/agent', () => ({ runAgentTurn: vi.fn() }))
+vi.mock('../chat/attachments', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../chat/attachments')>()
+  return { ...actual, prepareAttachment: vi.fn(actual.prepareAttachment) }
+})
 
 const runTurn = vi.mocked(runAgentTurn)
+const prepare = vi.mocked(prepareAttachment)
+type Prepared = Awaited<ReturnType<typeof prepareAttachment>>
+const deferredAttachment = () => {
+  let resolve: (value: Prepared) => void = () => {}
+  prepare.mockImplementationOnce(() => new Promise<Prepared>((r) => (resolve = r)))
+  return (value: Prepared) => resolve(value)
+}
+const prepared: Prepared = { name: 'posicao.csv', meta: 'CSV · 2 linhas', promptText: 'Arquivo anexado: posicao.csv' }
 const chat = () => useChatStore.getState()
 const invest = () => useInvestmentStore.getState()
 
@@ -140,6 +153,66 @@ describe('sendMessage', () => {
     resolve({ history: [{ role: 'user', content: 'oi' }], reply: 'tarde demais', proposals: [] })
     await pending
     expect(chat()).toMatchObject({ messages: [], history: [], typing: false })
+  })
+})
+
+describe('sendMessage async ordering', () => {
+  const csv = () => new File(['Ativo;Cotas\nTAEE11;80\n'], 'posicao.csv')
+
+  it('is typing immediately when a staged file is being read', async () => {
+    const finish = deferredAttachment()
+    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [] })
+    chat().stageFile(csv())
+    const pending = chat().sendMessage('importa')
+    expect(chat().typing).toBe(true)
+    finish(prepared)
+    await pending
+    expect(chat().typing).toBe(false)
+  })
+
+  it('ignores a second send while the attachment is being read', async () => {
+    const finish = deferredAttachment()
+    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [] })
+    chat().stageFile(csv())
+    const first = chat().sendMessage('importa')
+    const second = chat().sendMessage('importa')
+    finish(prepared)
+    await Promise.all([first, second])
+    expect(runTurn).toHaveBeenCalledTimes(1)
+    expect(chat().messages.filter((m) => m.role === 'user')).toHaveLength(1)
+  })
+
+  it('drops an attachment read that finishes after "Nova conversa" and leaves the chat usable', async () => {
+    const finish = deferredAttachment()
+    chat().stageFile(csv())
+    const pending = chat().sendMessage('importa')
+    chat().newChat()
+    finish(prepared)
+    await pending
+    expect(runTurn).not.toHaveBeenCalled()
+    expect(chat()).toMatchObject({ messages: [], typing: false })
+
+    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [] })
+    await chat().sendMessage('oi')
+    expect(chat().messages.map((m) => m.text)).toEqual(['oi', 'ok'])
+  })
+
+  it('keeps notes added while a reply is pending', async () => {
+    let resolve: (value: Awaited<ReturnType<typeof runAgentTurn>>) => void = () => {}
+    runTurn.mockReturnValue(new Promise((r) => (resolve = r)))
+    seedProposal(proposal())
+    const pending = chat().sendMessage('oi')
+    chat().confirmProposal('m1', 'prop-1')
+    const resultHistory = [
+      { role: 'user' as const, content: 'oi' },
+      { role: 'assistant' as const, content: 'ok' },
+    ]
+    resolve({ history: resultHistory, reply: 'ok', proposals: [] })
+    await pending
+    expect(chat().history).toEqual([
+      ...resultHistory,
+      { role: 'user', content: '(nota automática do app) O usuário confirmou a proposta prop-1; as alterações foram salvas.' },
+    ])
   })
 })
 
