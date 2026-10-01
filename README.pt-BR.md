@@ -12,7 +12,7 @@ Um dashboard de investimentos *local-first* para carteiras brasileiras (FIIs, a�
 
 | Módulo | O que faz |
 | --- | --- |
-| **Dashboard** | Patrimônio total, alocação por classe, tabela detalhada de ativos (preço médio, cotação ao vivo, lucro/prejuízo), cadastro manual de ativos e listas de monitoramento direto. |
+| **Dashboard** | Tela dividida: um assistente de IA (OpenRouter) que importa planilhas e gerencia ativos e categorias com prévia e confirmação, ao lado do gráfico de composição e da tabela de ativos. |
 | **Estratégia** | Define os alvos de alocação (FIIs / ações / renda fixa), registra a sua política de investimentos, salva snapshots de rebalanceamento e gera um prompt pronto para análise estratégica com IA. |
 | **Projeção** | Projeção de patrimônio por juros compostos a partir de capital inicial, aporte mensal, taxa anual e prazo. |
 | **Plano Mensal** | Controle de receitas e gastos, cálculo do fator poupança e do valor restante, com fechamento do mês em snapshot (mantendo ou zerando as despesas). |
@@ -22,16 +22,15 @@ Um dashboard de investimentos *local-first* para carteiras brasileiras (FIIs, a�
 | **Menu de Dados** | Visualizador/editor JSON do estado bruto, exportação e importação de backup e reset completo dos dados. |
 | **Multi-carteiras** | Cria, renomeia, colore e exclui várias carteiras; visualize uma isoladamente ou todas de forma consolidada. |
 
-### Importação universal de planilhas
+### Importação pelo assistente
 
-O importador (`src/utils/universalParser.ts`) aceita **qualquer** arquivo `.csv`, `.xlsx` ou `.xls`:
+Não há mais assistente de mapeamento de colunas. Anexe no chat qualquer exportação `.csv`, `.xlsx` ou `.xls` da corretora e o modelo:
 
-- detecta a linha de cabeçalho e mapeia colunas automaticamente por sinônimos (`ticker`/`ativo`/`papel`, `quantidade`/`qtd`/`cotas`, `preço médio`/`pm`, `tipo`/`categoria`, …);
-- classifica cada ativo em FIIs, ações, Tesouro, renda fixa ou dividendos (com heurística para tickers `…11` que são *units*, e não FIIs);
-- permite ajustar o mapeamento manualmente por seção da planilha;
-- importa para uma carteira **nova** ou para uma existente, **substituindo** ou **mesclando/somando** as posições.
+- descobre quais colunas têm o ticker, a quantidade e o preço médio;
+- classifica cada ativo (inclusive tickers `…11` que são units, não FIIs);
+- mostra uma prévia de cada alteração, que só é salva depois de você clicar em **Confirmar**.
 
-Há um modelo de exemplo em `public/modelo_importacao.xlsx`.
+Você precisa de uma chave própria do [OpenRouter](https://openrouter.ai/keys); ela fica salva apenas no seu navegador. Veja [`docs/openrouter.md`](./docs/openrouter.md). Há um modelo de exemplo em `public/modelo_importacao.xlsx`.
 
 ---
 
@@ -42,6 +41,7 @@ Há um modelo de exemplo em `public/modelo_importacao.xlsx`.
 - **Tailwind CSS** para o visual (tema escuro, destaque em esmeralda)
 - **Recharts** para gráficos, **Framer Motion** para animações, **lucide-react** para ícones
 - **xlsx** para leitura de planilhas, **axios** + **cheerio** para cotações e scraping
+- **OpenRouter** (chat completions com tool calling) para o assistente, **Vitest** + Testing Library para testes
 
 ---
 
@@ -84,6 +84,8 @@ Você consegue um token gratuito em [brapi.dev](https://brapi.dev). Sem ele o ap
 | `npm run dev` | Sobe o servidor de desenvolvimento com os proxies de cotação ativos. |
 | `npm run build` | Faz a checagem de tipos (`tsc`) e gera o build em `dist/`. |
 | `npm run preview` | Serve localmente o build de produção. |
+| `npm test` | Roda a suíte de testes uma vez (Vitest). |
+| `npm run test:watch` | Roda o Vitest em modo watch. |
 | `npm run lint` | ESLint sobre `ts`/`tsx`. ⚠️ Ainda não há arquivo de configuração do ESLint versionado, então o comando falha até que um seja adicionado. |
 
 ---
@@ -108,6 +110,8 @@ Ambas passam pelos proxies do servidor de desenvolvimento do Vite (`/api` → `b
 - Limpar os dados do navegador apaga a sua carteira. Exporte backups com frequência.
 - A pasta `data/` guarda JSONs locais e está no `.gitignore`.
 
+O assistente envia suas mensagens, o conteúdo das planilhas anexadas e um resumo da carteira em exibição para o OpenRouter e para o provedor do modelo escolhido. Nada mais sai do navegador.
+
 ---
 
 ## 📁 Estrutura do projeto
@@ -118,7 +122,7 @@ src/
 ├── main.tsx
 ├── components/
 │   ├── Sidebar.tsx             # Navegação, importação de planilha, backup
-│   ├── Dashboard.tsx           # Patrimônio, alocação, tabela de ativos, listas
+│   ├── home/                   # Página inicial: chat + carteira
 │   ├── Strategy.tsx            # Alvos, política de investimentos, snapshots, prompt de IA
 │   ├── Projection.tsx          # Projeção por juros compostos
 │   ├── PlanoMensal.tsx         # Plano mensal de receitas e gastos
@@ -126,14 +130,17 @@ src/
 │   ├── TaxModule.tsx           # Imposto de Renda (Brasil + exterior)
 │   ├── History.tsx             # Histórico mensal
 │   ├── DataManagement.tsx      # Editor JSON, backups, reset
-│   ├── ImportModal.tsx         # Assistente de importação universal
 │   ├── PortfolioManagerModal.tsx / PortfolioSelector.tsx
 │   └── ErrorBoundary.tsx
+├── chat/                       # Loop do agente, ferramentas, prompt, leitura de anexos
+├── domain/                     # Lógica pura de ativos, visão da carteira e operações
+├── hooks/                      # Atualização de cotações e revalidação da chave
+├── lib/openrouter/             # Cliente HTTP do OpenRouter e lista de modelos
 ├── services/brapi.ts           # Cotações (brapi) + indicadores (Investidor10)
 ├── store/useInvestmentStore.ts # Store Zustand, persistência e lógica de carteiras
-└── utils/
-    ├── universalParser.ts      # Detecção de colunas e classificação de ativos
-    └── parser.ts               # Importação por seções configuradas
+├── store/useChatStore.ts       # Estado do chat, propostas, confirmar/descartar
+├── store/useAiSettingsStore.ts # Chave do OpenRouter e modelo escolhido
+└── utils/financingEngine.ts    # Motor de cálculo de financiamento
 docs/                           # Notas sobre a API da brapi e sobre impostos
 legacy/                         # Versão anterior em Streamlit/Python (sem manutenção)
 public/modelo_importacao.xlsx   # Modelo de importação

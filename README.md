@@ -12,7 +12,7 @@ A local-first investment dashboard for Brazilian portfolios (FIIs, stocks, Tesou
 
 | Module | What it does |
 | --- | --- |
-| **Dashboard** | Total equity, per-class allocation, detailed asset table (average price, live quote, P/L), manual asset entry and custom watchlists ("Monitoramento Direto"). |
+| **Dashboard** | Split view: an AI assistant (OpenRouter) that imports spreadsheets and manages assets and categories through confirm-before-save previews, next to the portfolio composition chart and detailed asset table. |
 | **Strategy** | Define target allocation (FIIs / stocks / fixed income), write your investment policy, save rebalancing snapshots, and generate a ready-to-paste AI prompt for strategic analysis. |
 | **Projection** | Compound-interest wealth projection from initial capital, monthly contribution, annual rate and time horizon. |
 | **Monthly Plan** | Track income and expenses, compute the savings factor and remaining balance, then close the month with a monthly snapshot (keeping or clearing expenses). |
@@ -22,16 +22,15 @@ A local-first investment dashboard for Brazilian portfolios (FIIs, stocks, Tesou
 | **Data Menu** | JSON viewer/editor over the raw store, backup export/import, and a full data reset. |
 | **Multi-portfolio** | Create, rename, colour and delete multiple portfolios; view one in isolation or all of them consolidated. |
 
-### Universal spreadsheet import
+### Assistant-driven import
 
-The importer (`src/utils/universalParser.ts`) accepts **any** `.csv`, `.xlsx` or `.xls` file:
+There is no column-mapping wizard. Attach any `.csv`, `.xlsx` or `.xls` broker export in the chat and the model:
 
-- detects the header row and auto-maps columns from synonym lists (`ticker`/`ativo`/`papel`, `quantidade`/`qtd`/`cotas`, `preço médio`/`pm`, `tipo`/`categoria`, …);
-- classifies each asset into FIIs, stocks, Tesouro, fixed income or dividends (including heuristics for `…11` tickers that are units, not FIIs);
-- lets you override the mapping manually per sheet section;
-- imports into a **new** portfolio or an existing one, either **replacing** or **merging/summing** positions.
+- works out which columns hold the ticker, quantity and average price;
+- classifies each asset (including `…11` tickers that are units, not FIIs);
+- shows a preview of every change, which is only saved after you click **Confirmar**.
 
-A sample file is available at `public/modelo_importacao.xlsx`.
+You need your own [OpenRouter](https://openrouter.ai/keys) API key; it is stored only in your browser. See [`docs/openrouter.md`](./docs/openrouter.md). A sample file is available at `public/modelo_importacao.xlsx`.
 
 ---
 
@@ -42,6 +41,7 @@ A sample file is available at `public/modelo_importacao.xlsx`.
 - **Tailwind CSS** for styling (dark theme, emerald accent)
 - **Recharts** for charts, **Framer Motion** for animation, **lucide-react** for icons
 - **xlsx** for spreadsheet parsing, **axios** + **cheerio** for quotes and scraping
+- **OpenRouter** (chat completions with tool calling) for the assistant, **Vitest** + Testing Library for tests
 
 ---
 
@@ -84,6 +84,8 @@ Get a free token at [brapi.dev](https://brapi.dev). Without it the app still run
 | `npm run dev` | Start the dev server with the quote proxies enabled. |
 | `npm run build` | Type-check (`tsc`) and build to `dist/`. |
 | `npm run preview` | Serve the production build locally. |
+| `npm test` | Run the test suite once (Vitest). |
+| `npm run test:watch` | Run Vitest in watch mode. |
 | `npm run lint` | ESLint over `ts`/`tsx`. ⚠️ No ESLint config file is committed yet, so this currently fails until one is added. |
 
 ---
@@ -108,6 +110,8 @@ Both are reached through Vite dev-server proxies (`/api` → `brapi.dev`, `/i10`
 - Clearing your browser data deletes your portfolio. Export backups regularly.
 - The `data/` folder holds local JSON fixtures and is git-ignored.
 
+The assistant sends your messages, attached spreadsheet contents and a summary of the portfolio you are viewing to OpenRouter and the model provider you select. Nothing else leaves the browser.
+
 ---
 
 ## 📁 Project structure
@@ -118,7 +122,7 @@ src/
 ├── main.tsx
 ├── components/
 │   ├── Sidebar.tsx             # Navigation, spreadsheet import, backup export/import
-│   ├── Dashboard.tsx           # Equity, allocation, asset table, watchlists
+│   ├── home/                   # Chat + portfolio home page
 │   ├── Strategy.tsx            # Targets, investment policy, snapshots, AI prompt
 │   ├── Projection.tsx          # Compound-interest projection
 │   ├── PlanoMensal.tsx         # Monthly income/expense plan
@@ -126,14 +130,17 @@ src/
 │   ├── TaxModule.tsx           # Income tax (Brazil + foreign assets)
 │   ├── History.tsx             # Monthly history
 │   ├── DataManagement.tsx      # JSON editor, backups, reset
-│   ├── ImportModal.tsx         # Universal import wizard
 │   ├── PortfolioManagerModal.tsx / PortfolioSelector.tsx
 │   └── ErrorBoundary.tsx
+├── chat/                       # Agent loop, tools, system prompt, attachment reading
+├── domain/                     # Pure asset, portfolio-view and operation logic
+├── hooks/                      # Quote refresh and API-key revalidation
+├── lib/openrouter/             # OpenRouter HTTP client and model list
 ├── services/brapi.ts           # Quotes (brapi) + indicators (Investidor10)
 ├── store/useInvestmentStore.ts # Zustand store, persistence, portfolio logic
-└── utils/
-    ├── universalParser.ts      # Column detection and asset classification
-    └── parser.ts               # Section-configured import
+├── store/useChatStore.ts       # Chat state, proposals, confirm/discard
+├── store/useAiSettingsStore.ts # OpenRouter key and selected model
+└── utils/financingEngine.ts    # Financing calculation engine
 docs/                           # brapi API and Brazilian tax notes
 legacy/                         # Previous Streamlit/Python version (unmaintained)
 public/modelo_importacao.xlsx   # Import template
