@@ -83,4 +83,18 @@ describe('categories', () => {
       'ETFs',
     ])
   })
+
+  it('treats prototype pollution names as custom categories, not built-in', () => {
+    expect(isBuiltinCategory('constructor')).toBe(false)
+    expect(isBuiltinCategory('__proto__')).toBe(false)
+    expect(isBuiltinCategory('toString')).toBe(false)
+    expect(isBuiltinCategory('valueOf')).toBe(false)
+  })
+
+  it('maps prototype pollution names to manualAssets section', () => {
+    expect(sectionForCategory('constructor')).toBe('manualAssets')
+    expect(sectionForCategory('__proto__')).toBe('manualAssets')
+    expect(sectionForCategory('toString')).toBe('manualAssets')
+    expect(sectionForCategory('valueOf')).toBe('manualAssets')
+  })
 })

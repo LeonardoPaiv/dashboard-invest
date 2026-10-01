@@ -206,3 +206,33 @@ describe('describeOperations', () => {
     expect(rows.map((r) => r.mode)).toEqual(['novo', 'somar'])
   })
 })
+
+describe('prototype pollution protection', () => {
+  it('adds a category named "constructor" and stores assets in manualAssets', () => {
+    const { workspace: ws, errors } = runOperations(workspace(), 'p1', [
+      { type: 'add_category', name: 'constructor' },
+      { type: 'upsert_asset', ticker: 'TEST', category: 'constructor', quantity: 10, avgPrice: 100, mode: 'add' },
+    ])
+    expect(errors).toEqual([])
+    expect(ws.categories).toContain('constructor')
+    expect(ws.portfolios[0].data.manualAssets).toHaveLength(1)
+    expect(ws.portfolios[0].data.manualAssets[0]).toMatchObject({
+      Ticker: 'TEST',
+      Categoria: 'constructor',
+      Quantidade: 10,
+      PrecoMedio: 100,
+    })
+  })
+
+  it('allows removing a category named "constructor" with moveTo', () => {
+    const { workspace: ws, errors } = runOperations(workspace(), 'p1', [
+      { type: 'add_category', name: 'constructor' },
+      { type: 'upsert_asset', ticker: 'TEST', category: 'constructor', quantity: 10, avgPrice: 100, mode: 'add' },
+      { type: 'remove_category', name: 'constructor', moveTo: 'Ações' },
+    ])
+    expect(errors).toEqual([])
+    expect(ws.categories).not.toContain('constructor')
+    expect(ws.portfolios[0].data.manualAssets).toEqual([])
+    expect(ws.portfolios[0].data.acoes[0]).toMatchObject({ Ticker: 'TEST', Quantidade: 10 })
+  })
+})

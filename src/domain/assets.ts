@@ -20,9 +20,12 @@ const SECTION_CATEGORY: Record<Exclude<SectionKey, 'manualAssets'>, string> = {
   tesouro: 'Tesouro Direto',
 }
 
-export const isBuiltinCategory = (name: string): boolean => name in CATEGORY_SECTION
+export const isBuiltinCategory = (name: string): boolean => Object.prototype.hasOwnProperty.call(CATEGORY_SECTION, name)
 
-export const sectionForCategory = (category: string): SectionKey => CATEGORY_SECTION[category] ?? 'manualAssets'
+export const sectionForCategory = (category: string): SectionKey => {
+  const section = Object.prototype.hasOwnProperty.call(CATEGORY_SECTION, category) ? CATEGORY_SECTION[category] : undefined
+  return section ?? 'manualAssets'
+}
 
 export const normalizeTicker = (ticker: string): string => ticker.trim().toUpperCase()
 
