@@ -104,6 +104,9 @@ const text = (value: unknown): string => (typeof value === 'string' ? value.trim
 const failure = (errors: string[]): ToolResult => ({ content: JSON.stringify({ ok: false, errors }) })
 
 function parseOperation(raw: any, index: number): AssetOperation | string {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    return `Operação ${index + 1}: tipo desconhecido "${String(raw)}".`
+  }
   switch (raw?.type) {
     case 'upsert_asset':
       return {
@@ -130,73 +133,91 @@ function parseOperation(raw: any, index: number): AssetOperation | string {
 }
 
 function getPortfolio(context: ToolContext): ToolResult {
-  const assets = listAssets(context.viewData)
-  const total = assets.reduce((acc, a) => acc + a.value, 0)
-  const byCategory = new Map<string, number>()
-  for (const asset of assets) byCategory.set(asset.category, (byCategory.get(asset.category) || 0) + asset.value)
-  const target = context.workspace.portfolios.find((p) => p.id === context.targetPortfolioId)
-  return {
-    content: JSON.stringify({
-      portfolio: context.viewLabel,
-      changesWillBeSavedTo: target?.name ?? null,
-      total: round2(total),
-      categories: context.workspace.categories.map((name) => {
-        const value = byCategory.get(name) || 0
-        return { name, builtin: isBuiltinCategory(name), value: round2(value), sharePct: total > 0 ? round2((value / total) * 100) : 0 }
+  try {
+    const assets = listAssets(context.viewData)
+    const total = assets.reduce((acc, a) => acc + a.value, 0)
+    const byCategory = new Map<string, number>()
+    for (const asset of assets) byCategory.set(asset.category, (byCategory.get(asset.category) || 0) + asset.value)
+    const target = context.workspace.portfolios.find((p) => p.id === context.targetPortfolioId)
+    return {
+      content: JSON.stringify({
+        portfolio: context.viewLabel,
+        changesWillBeSavedTo: target?.name ?? null,
+        total: round2(total),
+        categories: context.workspace.categories.map((name) => {
+          const value = byCategory.get(name) || 0
+          return { name, builtin: isBuiltinCategory(name), value: round2(value), sharePct: total > 0 ? round2((value / total) * 100) : 0 }
+        }),
+        assets: assets.map((a) => ({
+          ticker: a.ticker,
+          category: a.category,
+          quantity: a.quantity,
+          avgPrice: round2(a.avgPrice),
+          price: round2(a.price),
+          value: round2(a.value),
+        })),
+        allocationTargetsPct: context.allocationTargets,
       }),
-      assets: assets.map((a) => ({
-        ticker: a.ticker,
-        category: a.category,
-        quantity: a.quantity,
-        avgPrice: round2(a.avgPrice),
-        price: round2(a.price),
-        value: round2(a.value),
-      })),
-      allocationTargetsPct: context.allocationTargets,
-    }),
+    }
+  } catch {
+    return failure(['Erro interno ao executar a ferramenta.'])
   }
 }
 
 function proposeChanges(args: any, context: ToolContext): ToolResult {
-  const rawOperations: unknown[] = Array.isArray(args?.operations) ? args.operations : []
-  if (rawOperations.length === 0) return failure(['Informe ao menos uma operação em "operations".'])
+  try {
+    const rawOperations: unknown[] = Array.isArray(args?.operations) ? args.operations : []
+    if (rawOperations.length === 0) return failure(['Informe ao menos uma operação em "operations".'])
 
-  const parsed = rawOperations.map(parseOperation)
-  const parseErrors = parsed.filter((item): item is string => typeof item === 'string')
-  if (parseErrors.length > 0) return failure(parseErrors)
-  const operations = parsed as AssetOperation[]
+    const parsed = rawOperations.map(parseOperation)
+    const parseErrors = parsed.filter((item): item is string => typeof item === 'string')
+    if (parseErrors.length > 0) return failure(parseErrors)
+    const operations = parsed as AssetOperation[]
 
-  const { errors } = runOperations(context.workspace, context.targetPortfolioId, operations)
-  if (errors.length > 0) return failure(errors)
+    const { errors } = runOperations(context.workspace, context.targetPortfolioId, operations)
+    if (errors.length > 0) return failure(errors)
 
-  const target = context.workspace.portfolios.find((p) => p.id === context.targetPortfolioId)
-  const proposal: Proposal = {
-    id: context.createId(),
-    portfolioId: context.targetPortfolioId,
-    portfolioName: target?.name ?? '',
-    summary: text(args?.summary),
-    operations,
-    rows: describeOperations(context.workspace, context.targetPortfolioId, operations),
-    status: 'pending',
-  }
-  return {
-    proposal,
-    content: JSON.stringify({
-      ok: true,
-      proposalId: proposal.id,
-      status: 'pending_user_confirmation',
-      message: `Prévia exibida ao usuário. Nada foi salvo; ele precisa clicar em Confirmar. Destino: ${proposal.portfolioName}.`,
-    }),
+    const target = context.workspace.portfolios.find((p) => p.id === context.targetPortfolioId)
+    const proposal: Proposal = {
+      id: context.createId(),
+      portfolioId: context.targetPortfolioId,
+      portfolioName: target?.name ?? '',
+      summary: text(args?.summary),
+      operations,
+      rows: describeOperations(context.workspace, context.targetPortfolioId, operations),
+      status: 'pending',
+    }
+    return {
+      proposal,
+      content: JSON.stringify({
+        ok: true,
+        proposalId: proposal.id,
+        status: 'pending_user_confirmation',
+        message: `Prévia exibida ao usuário. Nada foi salvo; ele precisa clicar em Confirmar. Destino: ${proposal.portfolioName}.`,
+      }),
+    }
+  } catch {
+    return failure(['Erro interno ao executar a ferramenta.'])
   }
 }
 
-export function executeTool(name: string, rawArguments: string, context: ToolContext): ToolResult {
+export function executeTool(name: string, rawArguments: unknown, context: ToolContext): ToolResult {
   let args: unknown
-  try {
-    args = rawArguments.trim() === '' ? {} : JSON.parse(rawArguments)
-  } catch {
+
+  if (typeof rawArguments === 'string') {
+    try {
+      args = rawArguments.trim() === '' ? {} : JSON.parse(rawArguments)
+    } catch {
+      return failure(['Argumentos inválidos: não é um JSON válido.'])
+    }
+  } else if (rawArguments === null || rawArguments === undefined) {
+    args = {}
+  } else if (typeof rawArguments === 'object') {
+    args = rawArguments
+  } else {
     return failure(['Argumentos inválidos: não é um JSON válido.'])
   }
+
   if (name === 'get_portfolio') return getPortfolio(context)
   if (name === 'propose_changes') return proposeChanges(args, context)
   return failure([`Ferramenta desconhecida: ${name}.`])

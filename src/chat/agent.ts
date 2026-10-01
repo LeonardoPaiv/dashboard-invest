@@ -52,9 +52,22 @@ export async function runAgentTurn({
     }
 
     for (const toolCall of assistant.tool_calls) {
-      const result = executeTool(toolCall.function.name, toolCall.function.arguments ?? '', toolContext)
+      const id = toolCall?.id
+      const name = toolCall?.function?.name
+
+      if (typeof id !== 'string' || id.trim() === '') {
+        continue
+      }
+
+      let result
+      if (typeof name !== 'string') {
+        result = { content: JSON.stringify({ ok: false, errors: ['Chamada de ferramenta malformada.'] }) }
+      } else {
+        result = executeTool(name, toolCall.function.arguments ?? '', toolContext)
+      }
+
       if (result.proposal) proposals.push(result.proposal)
-      messages.push({ role: 'tool', tool_call_id: toolCall.id, content: result.content })
+      messages.push({ role: 'tool', tool_call_id: id, content: result.content })
     }
   }
 

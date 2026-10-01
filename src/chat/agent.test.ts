@@ -125,4 +125,79 @@ describe('runAgentTurn', () => {
     const complete = vi.fn().mockRejectedValue(new OpenRouterError('Invalid credentials', 401))
     await expect(runAgentTurn({ ...base, complete })).rejects.toMatchObject({ status: 401 })
   })
+
+  it('handles tool call without function field', async () => {
+    const complete = scripted(
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'c1', type: 'function' as const, function: { name: 'get_portfolio', arguments: '{}' } },
+          { id: 'c2', type: 'function' as const } as any, // missing function
+          { role: 'assistant', content: 'Done' },
+        ] as any,
+      },
+      { role: 'assistant', content: 'ok' },
+    )
+    const result = await runAgentTurn({ ...base, complete })
+    expect(result.history.filter((m) => m.role === 'tool')).toHaveLength(2)
+    const toolMessages = result.history.filter((m) => m.role === 'tool')
+    expect(toolMessages[1]).toMatchObject({ tool_call_id: 'c2' })
+    expect(JSON.parse(toolMessages[1].content)).toEqual({ ok: false, errors: ['Chamada de ferramenta malformada.'] })
+  })
+
+  it('skips tool call without id field', async () => {
+    const complete = scripted(
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'c1', type: 'function' as const, function: { name: 'get_portfolio', arguments: '{}' } },
+          { type: 'function' as const, function: { name: 'get_portfolio', arguments: '{}' } } as any, // missing id
+        ],
+      },
+      { role: 'assistant', content: 'ok' },
+    )
+    const result = await runAgentTurn({ ...base, complete })
+    const toolMessages = result.history.filter((m) => m.role === 'tool')
+    expect(toolMessages).toHaveLength(1)
+    expect(toolMessages[0]).toMatchObject({ tool_call_id: 'c1' })
+  })
+
+  it('handles arguments as an already-parsed object', async () => {
+    const complete = scripted(
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          {
+            id: 'c1',
+            type: 'function' as const,
+            function: { name: 'propose_changes', arguments: { summary: 's', operations: [{ type: 'upsert_asset', ticker: 'ITUB4', category: 'Ações', quantity: 1, avgPrice: 1 }] } } as any,
+          },
+        ],
+      },
+      { role: 'assistant', content: 'ok' },
+    )
+    const result = await runAgentTurn({ ...base, complete })
+    expect(result.proposals).toHaveLength(1)
+    expect(result.proposals[0].id).toBe('prop-1')
+  })
+
+  it('handles tool call with non-string name', async () => {
+    const complete = scripted(
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [
+          { id: 'c1', type: 'function' as const, function: { name: 123, arguments: '{}' } } as any,
+        ],
+      },
+      { role: 'assistant', content: 'ok' },
+    )
+    const result = await runAgentTurn({ ...base, complete })
+    const toolMessages = result.history.filter((m) => m.role === 'tool')
+    expect(toolMessages).toHaveLength(1)
+    expect(JSON.parse(toolMessages[0].content)).toEqual({ ok: false, errors: ['Chamada de ferramenta malformada.'] })
+  })
 })

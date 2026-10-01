@@ -135,4 +135,61 @@ describe('executeTool — propose_changes', () => {
     expect(result.proposal).toMatchObject({ portfolioId: 'p2', portfolioName: 'Aposentadoria' })
     expect(result.proposal?.rows[0].mode).toBe('novo')
   })
+
+  it('handles null in operations array', () => {
+    const result = executeTool('propose_changes', JSON.stringify({ summary: 's', operations: [null, 5, 'x'] }), context())
+    expect(result.proposal).toBeUndefined()
+    const body = JSON.parse(result.content)
+    expect(body.ok).toBe(false)
+    expect(body.errors.length).toBe(3)
+    expect(body.errors.every((e: string) => e.includes('tipo desconhecido'))).toBe(true)
+  })
+
+  it('handles null as operations argument', () => {
+    const result = executeTool('propose_changes', JSON.stringify({ summary: 's', operations: null }), context())
+    expect(result.proposal).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({ ok: false, errors: ['Informe ao menos uma operação em "operations".'] })
+  })
+
+  it('handles array as top-level argument', () => {
+    const result = executeTool('propose_changes', JSON.stringify([1, 2, 3]), context())
+    expect(result.proposal).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({ ok: false, errors: ['Informe ao menos uma operação em "operations".'] })
+  })
+
+  it('handles the string "null" as JSON argument', () => {
+    const result = executeTool('propose_changes', 'null', context())
+    expect(result.proposal).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({ ok: false, errors: ['Informe ao menos uma operação em "operations".'] })
+  })
+
+  it('handles number as rawArguments (untrusted input)', () => {
+    const result = executeTool('propose_changes', 42 as any, context())
+    expect(result.proposal).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({ ok: false, errors: ['Argumentos inválidos: não é um JSON válido.'] })
+  })
+
+  it('handles boolean as rawArguments (untrusted input)', () => {
+    const result = executeTool('propose_changes', true as any, context())
+    expect(result.proposal).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({ ok: false, errors: ['Argumentos inválidos: não é um JSON válido.'] })
+  })
+
+  it('accepts an object as rawArguments (already parsed by some providers)', () => {
+    const result = executeTool(
+      'propose_changes',
+      { summary: 's', operations: [{ type: 'upsert_asset', ticker: 'ITUB4', category: 'Ações', quantity: 1, avgPrice: 1 }] } as any,
+      context(),
+    )
+    expect(result.proposal).toBeDefined()
+    expect(result.proposal?.id).toBe('prop-1')
+  })
+
+  it('handles internal tool error (wrapped in try/catch)', () => {
+    const ctx = context()
+    ctx.viewData = { acoes: 5 } as any
+    const result = executeTool('get_portfolio', '{}', ctx)
+    expect(result.proposal).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({ ok: false, errors: ['Erro interno ao executar a ferramenta.'] })
+  })
 })
