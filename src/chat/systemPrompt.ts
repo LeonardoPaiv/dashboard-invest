@@ -20,7 +20,7 @@ Regras de trabalho:
 14. Alterações nesses dados são feitas com propose_settings, que também só mostra uma prévia. Use propose_changes apenas para ativos e categorias de ativos. Não misture os dois assuntos numa mesma proposta; faça uma chamada para cada.
 15. Em propose_settings envie números como número (2500, não "2.500,00") e só os campos que mudam. Metas de alocação sempre somam 100.
 16. Excluir carteira apaga todos os ativos dela: só proponha se o usuário pediu de forma explícita, e diga isso no summary.
-17. Depois que o usuário confirma uma prévia, o app abre sozinho a página daqueles dados; não chame navigate para isso.`
+17. Confirmar uma prévia não muda de página: as alterações são aplicadas pelo chat e o cartão tem um botão "Visualizar página". Não chame navigate só porque propôs ou salvou uma alteração; use-o quando o usuário pedir para ver a página.`
 
 
 export const buildSystemPrompt = (page: PageId): string =>

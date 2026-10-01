@@ -177,4 +177,23 @@ describe('ChatPanel', () => {
     expect(screen.getByRole('button', { name: 'Conversas' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Fechar assistente' })).not.toBeInTheDocument()
   })
+
+  it('offers "Visualizar página" apart from confirming, only when the data lives on another page', async () => {
+    const settings = {
+      id: 'set-1', portfolioId: '', portfolioName: 'Estratégia', summary: '', operations: [], rows: [],
+      status: 'pending' as const, page: 'strategy' as const,
+      settings: { operations: [{ type: 'set_contribution' as const, amount: 2500 }], rows: [] },
+    }
+    useChatStore.setState({
+      messages: [{ id: 'a1', role: 'assistant', text: 'Confira:', proposals: [settings, proposal({ page: 'dashboard' })] }],
+    })
+    render(<ChatPanel />)
+    expect(within(screen.getByTestId('proposal-prop-1')).queryByRole('button', { name: /Visualizar página/ })).not.toBeInTheDocument()
+    const card = screen.getByTestId('proposal-set-1')
+    await userEvent.click(within(card).getByRole('button', { name: 'Confirmar' }))
+    expect(useInvestmentStore.getState().activeTab).toBe('dashboard')
+    await userEvent.click(within(card).getByRole('button', { name: /Visualizar página/ }))
+    expect(useInvestmentStore.getState().activeTab).toBe('strategy')
+    expect(within(card).queryByRole('button', { name: /Visualizar página/ })).not.toBeInTheDocument()
+  })
 })

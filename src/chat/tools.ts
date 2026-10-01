@@ -424,7 +424,7 @@ function proposeSettings(args: any, context: ToolContext): ToolResult {
         ok: true,
         proposalId: proposal.id,
         status: 'pending_user_confirmation',
-        message: `Prévia exibida ao usuário. Nada foi salvo; ele precisa clicar em Confirmar. Ao confirmar, o app abre a página ${proposal.portfolioName}.`,
+        message: `Prévia exibida ao usuário. Nada foi salvo; ele precisa clicar em Confirmar. O cartão tem um botão "Visualizar página" para abrir ${proposal.portfolioName}.`,
       }),
     }
   } catch {

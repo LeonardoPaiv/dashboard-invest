@@ -247,12 +247,14 @@ describe('buildToolContext — navigation', () => {
 })
 
 describe('confirmProposal', () => {
-  it('shows the target portfolio after confirming an asset proposal aimed at another one', () => {
+  it('keeps the view on confirm and shows the target portfolio when the user asks to view it', () => {
     invest().addPortfolio('Aposentadoria')
     const other = invest().portfolios.find((p) => p.name === 'Aposentadoria')!.id
     invest().setActivePortfolio('default')
     seedProposal(proposal({ portfolioId: other, portfolioName: 'Aposentadoria', page: 'dashboard' }))
     chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activePortfolioId).toBe('default')
+    chat().viewProposal('m1', 'prop-1')
     expect(invest().activePortfolioId).toBe(other)
   })
 
@@ -344,13 +346,21 @@ const settingsProposal = (overrides: Partial<Proposal> = {}): Proposal => ({
 })
 
 describe('confirmProposal — settings', () => {
-  it('applies the settings, reports it and opens the owning page', () => {
+  it('applies the settings and reports it without leaving the current page', () => {
     seedProposal(settingsProposal())
     chat().confirmProposal('m1', 'set-1')
     expect(useFinancingStore.getState().params.termMonths).toBe(300)
     expect(chat().messages[0].proposals?.[0].status).toBe('done')
     expect(chat().messages[1].text).toBe('Pronto — 1 alteração salva em Financiamento.')
+    expect(invest().activeTab).toBe('dashboard')
+  })
+  it('opens the owning page only when the user asks to view it', () => {
+    seedProposal(settingsProposal())
+    chat().viewProposal('m1', 'set-1')
     expect(invest().activeTab).toBe('financiamento')
+    expect(chat().panelOpen).toBe(true)
+    expect(useFinancingStore.getState().params.termMonths).toBe(360)
+    expect(chat().messages[0].proposals?.[0].status).toBe('pending')
   })
   it('revalidates against the current data and saves nothing when it no longer applies', () => {
     seedProposal(settingsProposal({
@@ -364,10 +374,12 @@ describe('confirmProposal — settings', () => {
     })
     expect(invest().activeTab).toBe('dashboard')
   })
-  it('opens the dashboard after confirming an asset proposal from another page', () => {
+  it('stays on the current page after confirming an asset proposal and opens the dashboard on view', () => {
     invest().setActiveTab('history')
     seedProposal(proposal({ page: 'dashboard' }))
     chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activeTab).toBe('history')
+    chat().viewProposal('m1', 'prop-1')
     expect(invest().activeTab).toBe('dashboard')
   })
 })

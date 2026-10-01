@@ -45,6 +45,7 @@ interface ChatStore {
   confirmProposal: (messageId: string, proposalId: string) => void
   dismissProposal: (messageId: string, proposalId: string) => void
   goTo: (page: PageId) => void
+  viewProposal: (messageId: string, proposalId: string) => void
   openConversation: (id: string) => void
   deleteConversation: (id: string) => void
   openRelevant: (page: PageId) => void
@@ -249,11 +250,7 @@ export const useChatStore = create<ChatStore>()(
               if (errors.length > 0) throw new Error(errors.join('\n'))
               writeSettingsSnapshot(snapshot)
             } else {
-              const investment = useInvestmentStore.getState()
-              investment.applyAssetOperations(proposal.portfolioId, proposal.operations)
-              if (investment.activePortfolioId !== 'all' && investment.activePortfolioId !== proposal.portfolioId) {
-                investment.setActivePortfolio(proposal.portfolioId)
-              }
+              useInvestmentStore.getState().applyAssetOperations(proposal.portfolioId, proposal.operations)
             }
           } catch (error) {
             const message = (error as Error).message
@@ -278,7 +275,23 @@ export const useChatStore = create<ChatStore>()(
             ],
             history: [...state.history, note(`O usuário confirmou a proposta ${proposalId}; as alterações foram salvas.`)],
           }))
-          if (proposal.page) get().goTo(proposal.page)
+        },
+
+        viewProposal: (messageId, proposalId) => {
+          const proposal = get()
+            .messages.find((m) => m.id === messageId)
+            ?.proposals?.find((p) => p.id === proposalId)
+          if (!proposal?.page) return
+          const investment = useInvestmentStore.getState()
+          if (
+            !proposal.settings &&
+            investment.activePortfolioId !== 'all' &&
+            investment.activePortfolioId !== proposal.portfolioId &&
+            investment.portfolios.some((p) => p.id === proposal.portfolioId)
+          ) {
+            investment.setActivePortfolio(proposal.portfolioId)
+          }
+          get().goTo(proposal.page)
         },
 
         dismissProposal: (messageId, proposalId) => {

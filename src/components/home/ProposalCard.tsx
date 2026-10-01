@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Check, CheckCircle2 } from 'lucide-react'
+import { ArrowUpRight, Check, CheckCircle2 } from 'lucide-react'
 import type { Proposal } from '../../chat/tools'
 import { collectCategories } from '../../domain/assets'
 import type { PreviewMode } from '../../domain/operations'
@@ -36,6 +36,25 @@ export const ProposalCard = ({ messageId, proposal }: Props) => {
   const portfolios = useInvestmentStore((s) => s.portfolios)
   const confirmProposal = useChatStore((s) => s.confirmProposal)
   const dismissProposal = useChatStore((s) => s.dismissProposal)
+  const viewProposal = useChatStore((s) => s.viewProposal)
+  const activeTab = useInvestmentStore((s) => s.activeTab)
+  const activePortfolioId = useInvestmentStore((s) => s.activePortfolioId)
+  const otherPortfolio =
+    !proposal.settings && activePortfolioId !== 'all' && activePortfolioId !== proposal.portfolioId
+  const canView =
+    proposal.page !== undefined &&
+    (proposal.page !== activeTab || otherPortfolio) &&
+    (proposal.status === 'pending' || proposal.status === 'done')
+  const viewButton = canView && (
+    <button
+      type="button"
+      onClick={() => viewProposal(messageId, proposal.id)}
+      className="ml-auto flex items-center gap-1 px-3 py-2 rounded-xl border border-white/10 text-white/60 text-[11px] font-black uppercase tracking-wide hover:text-white hover:bg-white/10 transition-colors"
+    >
+      Visualizar página
+      <ArrowUpRight size={13} />
+    </button>
+  )
   const categories = useMemo(() => collectCategories(assetCategories, portfolios), [assetCategories, portfolios])
 
   return (
@@ -99,7 +118,7 @@ export const ProposalCard = ({ messageId, proposal }: Props) => {
       )}
 
       {proposal.status === 'pending' && (
-        <div className="flex gap-2 px-4 pb-3.5">
+        <div className="flex flex-wrap gap-2 px-4 pb-3.5">
           <button
             type="button"
             onClick={() => confirmProposal(messageId, proposal.id)}
@@ -115,12 +134,14 @@ export const ProposalCard = ({ messageId, proposal }: Props) => {
           >
             Descartar
           </button>
+          {viewButton}
         </div>
       )}
       {proposal.status === 'done' && (
         <div className="flex items-center gap-1.5 px-4 pb-3.5 text-emerald-400 text-[11px] font-black uppercase tracking-wide">
           <CheckCircle2 size={14} />
           Salvo em {proposal.portfolioName}
+          {viewButton}
         </div>
       )}
       {proposal.status === 'dismissed' && (

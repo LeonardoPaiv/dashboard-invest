@@ -27,7 +27,7 @@ O padrão é `stealth/space-bunny-alpha`. O menu do modelo lista alguns predefin
 | Configurar o app | "Muda a meta de FIIs para 30%", "Adiciona um aporte extra no financiamento" |
 | Ir para uma página | "Me leva para o plano mensal" |
 
-Toda alteração aparece primeiro como **prévia**. Nada é salvo até você clicar em **Confirmar**. Ao confirmar uma prévia, o app leva você à página afetada (e abre o painel flutuante, se não for o Dashboard).
+Toda alteração aparece primeiro como **prévia**. Nada é salvo até você clicar em **Confirmar**. Confirmar aplica a alteração sem sair da página em que você está; o botão **Visualizar página** do cartão leva à página afetada (e mantém o painel flutuante aberto, se não for o Dashboard).
 
 ## Ferramentas
 
