@@ -1,6 +1,6 @@
 import { useInvestmentStore } from './store/useInvestmentStore'
 import { Sidebar } from './components/Sidebar'
-import { Dashboard } from './components/Dashboard'
+import { HomePage } from './components/home/HomePage'
 import { Strategy } from './components/Strategy'
 import { Projection } from './components/Projection'
 import { PlanoMensal } from './components/PlanoMensal.tsx'
@@ -23,7 +23,7 @@ function App() {
         {/* Main Content */}
         <main className="flex-1 flex flex-col min-w-0 bg-black/10 overflow-hidden">
           <div className="flex-1 overflow-hidden flex flex-col">
-            {activeTab === 'dashboard' && <Dashboard />}
+            {activeTab === 'dashboard' && <HomePage />}
             {activeTab === 'strategy' && <Strategy />}
             {activeTab === 'projection' && <Projection />}
             {activeTab === 'plano-mensal' && <PlanoMensal setActiveTab={setActiveTab} />}

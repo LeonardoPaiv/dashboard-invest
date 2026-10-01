@@ -12,7 +12,7 @@ export const DataManagement = () => {
     const { 
       portfolios, activePortfolioId, portfolio, settings, snapshots, customLists, 
       equityHistory, monthlySnapshots, monthlyPlan, assetCategories, 
-      contributionAmount, importConfig, historicalTransactions 
+      contributionAmount, historicalTransactions 
     } = store;
     
     const data = {
@@ -27,7 +27,6 @@ export const DataManagement = () => {
       monthlyPlan,
       assetCategories,
       contributionAmount,
-      importConfig,
       historicalTransactions,
       version: '1.2',
       exportDate: new Date().toISOString()
@@ -107,14 +106,6 @@ export const DataManagement = () => {
         },
         assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
         contributionAmount: 1000,
-        importConfig: {
-          sections: [
-            { id: 'fiis', name: 'Fundos Imobiliários', trigger: 'Fundos Listados', type: 'fiis', mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 } },
-            { id: 'acoes', name: 'Ações', trigger: 'Renda Variável Brasil', type: 'acoes', mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 } },
-            { id: 'tesouro', name: 'Tesouro Direto', trigger: 'Tesouro Direto', type: 'tesouro', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 } },
-            { id: 'renda_fixa', name: 'Renda Fixa', trigger: 'Renda Fixa', type: 'renda_fixa', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 } }
-          ]
-        },
         historicalTransactions: [],
         version: '1.1',
         exportDate: new Date().toISOString()

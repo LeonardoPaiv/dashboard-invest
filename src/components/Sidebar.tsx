@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Upload, Download, LayoutDashboard, Target, History, Landmark, Wallet, Calculator, Database, Menu, X, Building2 } from 'lucide-react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
+import { useChatStore } from '../store/useChatStore';
 import logo from '../assets/logo.png';
 import { PortfolioSelector } from './PortfolioSelector';
-import { ImportModal } from './ImportModal';
 
 export const Sidebar = () => {
   const {
@@ -21,19 +21,16 @@ export const Sidebar = () => {
     monthlyPlan,
     assetCategories,
     contributionAmount,
-    importConfig,
     historicalTransactions
   } = useInvestmentStore();
 
-  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [selectedXlsxFile, setSelectedXlsxFile] = useState<File | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedXlsxFile(file);
-      setIsImportModalOpen(true);
+      useChatStore.getState().stageFile(file);
+      setActiveTab('dashboard');
       setIsMobileMenuOpen(false);
       e.target.value = '';
     }
@@ -52,7 +49,6 @@ export const Sidebar = () => {
       monthlyPlan,
       assetCategories,
       contributionAmount,
-      importConfig,
       historicalTransactions,
       version: '1.2',
       exportDate: new Date().toISOString()
@@ -147,16 +143,11 @@ export const Sidebar = () => {
         active={activeTab === 'history'}
         onClick={() => handleTabClick('history')}
       />
-      <NavItem
-        icon={<Upload size={18} />}
-        label="Importar Planilha"
-        active={isImportModalOpen}
-        onClick={() => {
-          setSelectedXlsxFile(null);
-          setIsImportModalOpen(true);
-          setIsMobileMenuOpen(false);
-        }}
-      />
+      <label className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all text-xs font-semibold text-white/50 hover:text-white hover:bg-white/5 cursor-pointer">
+        <Upload size={18} />
+        <span className="truncate">Importar Planilha</span>
+        <input type="file" className="hidden" accept=".csv,.xlsx,.xls" onChange={handleFileUpload} />
+      </label>
       <NavItem
         icon={<Database size={18} />}
         label="Menu de Dados"
@@ -261,15 +252,6 @@ export const Sidebar = () => {
         {navItemsContent}
         {sidebarActionsContent}
       </div>
-
-      <ImportModal
-        isOpen={isImportModalOpen}
-        onClose={() => {
-          setIsImportModalOpen(false);
-          setSelectedXlsxFile(null);
-        }}
-        initialFile={selectedXlsxFile}
-      />
     </>
   );
 };

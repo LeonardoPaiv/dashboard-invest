@@ -27,32 +27,6 @@ export interface Portfolio {
   updatedAt: string
 }
 
-export interface ColumnMapping {
-  ticker: number | null;
-  position: number | null;
-  allocation: number | null;
-  price: number | null;
-  quantity: number | null;
-  avgPrice?: number | null;
-  extra?: number | null; // e.g. Vencimento
-  indexador?: number | null;
-  grossValue?: number | null;
-  netValue?: number | null;
-}
-
-export interface SectionConfig {
-  id: string;
-  name: string;
-  trigger: string;
-  type: 'fiis' | 'acoes' | 'tesouro' | 'renda_fixa' | 'dividendos';
-  mapping: ColumnMapping;
-  sheetName?: string;
-}
-
-export interface ImportConfig {
-  sections: SectionConfig[];
-}
-
 interface Snapshot {
   id: string
   date: string
@@ -265,9 +239,6 @@ interface InvestmentStore {
   assetCategories: string[]
   contributionAmount: number
   setContributionAmount: (amount: number) => void
-  importConfig: ImportConfig
-  setImportConfig: (config: ImportConfig) => void
-  autoBuildImportSections: (sheetName: string, mapping: { tickerCol: number; quantityCol: number; priceCol: number; categoryCol: number | null }, parsedData: PortfolioData) => void
   addMonthlySnapshot: (snapshot: MonthlySnapshot, resetExpenses: boolean) => void
   deleteMonthlySnapshot: (id: string) => void
   updateAsset: (type: string, ticker: string, updates: any, targetPortfolioId?: string) => void
@@ -323,38 +294,6 @@ export const useInvestmentStore = create<InvestmentStore>()(
       },
       assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
       contributionAmount: 1000,
-      importConfig: {
-        sections: [
-          {
-            id: 'fiis',
-            name: 'Fundos Imobiliários',
-            trigger: 'Fundos Listados',
-            type: 'fiis',
-            mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 }
-          },
-          {
-            id: 'acoes',
-            name: 'Ações',
-            trigger: 'Renda Variável Brasil',
-            type: 'acoes',
-            mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 }
-          },
-          {
-            id: 'tesouro',
-            name: 'Tesouro Direto',
-            trigger: 'Tesouro Direto',
-            type: 'tesouro',
-            mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 }
-          },
-          {
-            id: 'renda_fixa',
-            name: 'Renda Fixa',
-            trigger: 'Renda Fixa',
-            type: 'renda_fixa',
-            mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 }
-          }
-        ]
-      },
 
       setActivePortfolio: (id) => set((state) => ({
         activePortfolioId: id,
@@ -676,104 +615,12 @@ export const useInvestmentStore = create<InvestmentStore>()(
           monthlyPlan: data.monthlyPlan || { incomes: [], expenses: [], categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros'] },
           assetCategories: data.assetCategories || ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
           contributionAmount: data.contributionAmount || 1000,
-          importConfig: data.importConfig || {
-            sections: [
-              { id: 'fiis', name: 'Fundos Imobiliários', trigger: 'Fundos Listados', type: 'fiis', mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 } },
-              { id: 'acoes', name: 'Ações', trigger: 'Renda Variável Brasil', type: 'acoes', mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 } },
-              { id: 'tesouro', name: 'Tesouro Direto', trigger: 'Tesouro Direto', type: 'tesouro', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 } },
-              { id: 'renda_fixa', name: 'Renda Fixa', trigger: 'Renda Fixa', type: 'renda_fixa', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 } }
-            ]
-          },
           historicalTransactions: data.historicalTransactions || []
         };
       }),
 
       setMonthlyPlan: (monthlyPlan) => set({ monthlyPlan }),
       setContributionAmount: (amount: number) => set({ contributionAmount: amount }),
-      setImportConfig: (importConfig) => set({ importConfig }),
-      autoBuildImportSections: (sheetName, mapping, parsedData) => set((state) => {
-        const currentSections = state.importConfig.sections;
-        const newSections: SectionConfig[] = [];
-
-        if (parsedData.acoes.length > 0) {
-          newSections.push({
-            id: crypto.randomUUID(),
-            name: 'Ações',
-            trigger: 'Ações',
-            type: 'acoes',
-            sheetName,
-            mapping: {
-              ticker: mapping.tickerCol,
-              position: null,
-              quantity: mapping.quantityCol,
-              price: mapping.priceCol,
-              allocation: null,
-              avgPrice: mapping.priceCol
-            }
-          });
-        }
-
-        if (parsedData.fiis.length > 0) {
-          newSections.push({
-            id: crypto.randomUUID(),
-            name: 'FIIs',
-            trigger: 'FIIs',
-            type: 'fiis',
-            sheetName,
-            mapping: {
-              ticker: mapping.tickerCol,
-              position: null,
-              quantity: mapping.quantityCol,
-              price: mapping.priceCol,
-              allocation: null,
-              avgPrice: mapping.priceCol
-            }
-          });
-        }
-
-        if (parsedData.tesouro.length > 0) {
-          newSections.push({
-            id: crypto.randomUUID(),
-            name: 'Tesouro Direto',
-            trigger: 'Tesouro',
-            type: 'tesouro',
-            sheetName,
-            mapping: {
-              ticker: mapping.tickerCol,
-              position: null,
-              quantity: mapping.quantityCol,
-              price: mapping.priceCol,
-              allocation: null,
-              grossValue: mapping.priceCol
-            }
-          });
-        }
-
-        if (parsedData.renda_fixa.length > 0) {
-          newSections.push({
-            id: crypto.randomUUID(),
-            name: 'Renda Fixa',
-            trigger: 'Renda Fixa',
-            type: 'renda_fixa',
-            sheetName,
-            mapping: {
-              ticker: mapping.tickerCol,
-              position: null,
-              quantity: mapping.quantityCol,
-              price: mapping.priceCol,
-              allocation: null
-            }
-          });
-        }
-
-        const filteredExisting = currentSections.filter(cs => !newSections.some(ns => ns.type === cs.type && ns.sheetName === cs.sheetName));
-
-        return {
-          importConfig: {
-            sections: [...newSections, ...filteredExisting]
-          }
-        };
-      }),
       addMonthlySnapshot: (snapshot, resetExpenses) => set((state) => {
         const nextMonthlyPlan = resetExpenses
           ? { ...state.monthlyPlan, expenses: [] }
@@ -889,15 +736,7 @@ export const useInvestmentStore = create<InvestmentStore>()(
           categories: ['Salário', 'Investimentos', 'Aluguel', 'Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação', 'Outros']
         },
         assetCategories: ['Ações', 'FIIs', 'Renda Fixa', 'Cripto', 'Exterior'],
-        contributionAmount: 1000,
-        importConfig: {
-          sections: [
-            { id: 'fiis', name: 'Fundos Imobiliários', trigger: 'Fundos Listados', type: 'fiis', mapping: { ticker: 0, position: 1, allocation: 2, price: 6, quantity: 7 } },
-            { id: 'acoes', name: 'Ações', trigger: 'Renda Variável Brasil', type: 'acoes', mapping: { ticker: 0, position: 1, allocation: 2, price: 5, quantity: 6 } },
-            { id: 'tesouro', name: 'Tesouro Direto', trigger: 'Tesouro Direto', type: 'tesouro', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 4 } },
-            { id: 'renda_fixa', name: 'Renda Fixa', trigger: 'Renda Fixa', type: 'renda_fixa', mapping: { ticker: 0, position: 1, allocation: 2, price: 3, quantity: 8, extra: 7 } }
-          ]
-        }
+        contributionAmount: 1000
       })
     }),
     {
