@@ -355,3 +355,116 @@ describe('confirmProposal — settings', () => {
     expect(invest().activeTab).toBe('dashboard')
   })
 })
+
+describe('saved conversations', () => {
+  const reply = (text: string) => runTurn.mockResolvedValueOnce({ history: [{ role: 'user', content: 'x' }, { role: 'assistant', content: text }], reply: text, proposals: [] })
+
+  it('saves the conversation as it grows, titled and tagged with the current page', async () => {
+    invest().setActiveTab('financiamento')
+    reply('Feito.')
+    await chat().sendMessage('Mude o prazo para 300 meses')
+    expect(chat().conversations).toHaveLength(1)
+    expect(chat().conversations[0]).toMatchObject({ id: chat().conversationId, title: 'Mude o prazo para 300 meses', page: 'financiamento' })
+    expect(chat().conversations[0].messages).toHaveLength(2)
+    reply('Mais uma.')
+    await chat().sendMessage('E a entrada?')
+    expect(chat().conversations).toHaveLength(1)
+    expect(chat().conversations[0].messages).toHaveLength(4)
+  })
+
+  it('writes conversations to localStorage and does not save an empty chat', async () => {
+    chat().newChat()
+    expect(chat().conversations).toEqual([])
+    reply('Olá!')
+    await chat().sendMessage('oi')
+    const stored = JSON.parse(localStorage.getItem('chat-conversations')!).state
+    expect(stored.conversations[0].title).toBe('oi')
+    expect(stored.conversationId).toBe(chat().conversationId)
+    expect(stored.typing).toBeUndefined()
+  })
+
+  it('starts a new chat without losing the saved one, and reopens it', async () => {
+    reply('Olá!')
+    await chat().sendMessage('primeira')
+    const firstId = chat().conversationId!
+    chat().newChat()
+    expect(chat()).toMatchObject({ messages: [], history: [], conversationId: null })
+    reply('Oi de novo')
+    await chat().sendMessage('segunda')
+    expect(chat().conversations.map((c) => c.title)).toEqual(['segunda', 'primeira'])
+    chat().openConversation(firstId)
+    expect(chat().conversationId).toBe(firstId)
+    expect(chat().messages.map((m) => m.text)).toEqual(['primeira', 'Olá!'])
+    // reabrir não mexe na ordem nem na data
+    expect(chat().conversations.map((c) => c.title)).toEqual(['segunda', 'primeira'])
+  })
+
+  it('opens the most recent conversation of the page, or a blank one', async () => {
+    invest().setActiveTab('financiamento')
+    reply('ok')
+    await chat().sendMessage('sobre financiamento')
+    const financingId = chat().conversationId
+    invest().setActiveTab('plano-mensal')
+    chat().openRelevant('plano-mensal')
+    expect(chat()).toMatchObject({ messages: [], conversationId: null })
+    chat().openRelevant('financiamento')
+    expect(chat().conversationId).toBe(financingId)
+    chat().openRelevant('financiamento')
+    expect(chat().conversationId).toBe(financingId)
+  })
+
+  it('does not switch conversations from the launcher while a reply is pending', () => {
+    useChatStore.setState({ typing: true, messages: [{ id: 'u', role: 'user', text: 'oi' }] })
+    const before = chat().conversationId
+    chat().openRelevant('history')
+    expect(chat().conversationId).toBe(before)
+    expect(chat().messages).toHaveLength(1)
+  })
+
+  it('drops a late reply when the user switched conversations meanwhile', async () => {
+    reply('Olá!')
+    await chat().sendMessage('primeira')
+    const firstId = chat().conversationId!
+    chat().newChat()
+    let resolve: (value: Awaited<ReturnType<typeof runAgentTurn>>) => void = () => {}
+    runTurn.mockImplementationOnce(() => new Promise((r) => (resolve = r)))
+    const pending = chat().sendMessage('segunda')
+    await Promise.resolve()
+    chat().openConversation(firstId)
+    resolve({ history: [], reply: 'atrasada', proposals: [] })
+    await pending
+    expect(chat().messages.map((m) => m.text)).toEqual(['primeira', 'Olá!'])
+    expect(chat().typing).toBe(false)
+  })
+
+  it('deletes a conversation and clears the screen when it was the open one', async () => {
+    reply('Olá!')
+    await chat().sendMessage('primeira')
+    chat().deleteConversation(chat().conversationId!)
+    expect(chat()).toMatchObject({ conversations: [], messages: [], conversationId: null })
+  })
+
+  it('moves the open conversation to the page the app navigated to', async () => {
+    reply('ok')
+    await chat().sendMessage('oi')
+    chat().goTo('strategy')
+    expect(chat().conversations[0].page).toBe('strategy')
+  })
+
+  it('keeps chatting when localStorage refuses to save', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError')
+    })
+    reply('Olá!')
+    await chat().sendMessage('oi')
+    expect(chat().messages.map((m) => m.text)).toEqual(['oi', 'Olá!'])
+    setItem.mockRestore()
+  })
+
+  it('clears every saved conversation', async () => {
+    reply('Olá!')
+    await chat().sendMessage('oi')
+    chat().clearConversations()
+    expect(chat()).toMatchObject({ conversations: [], messages: [], history: [], conversationId: null })
+  })
+})
