@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import { runAgentTurn } from '../chat/agent'
+import { readSettingsSnapshot, writeSettingsSnapshot } from '../chat/appState'
 import { prepareAttachment } from '../chat/attachments'
 import type { Proposal, ToolContext } from '../chat/tools'
 import { collectCategories } from '../domain/assets'
 import { isPageId, type PageId } from '../domain/pages'
+import { runSettingsOperations } from '../domain/settingsOperations'
 import { OpenRouterError, type ChatMessage } from '../lib/openrouter/client'
 import { useAiSettingsStore } from './useAiSettingsStore'
 import { resolveWritablePortfolioId, useInvestmentStore } from './useInvestmentStore'
@@ -62,6 +64,8 @@ export function buildToolContext(): ToolContext {
     currentPage: isPageId(state.activeTab) ? state.activeTab : 'dashboard',
     navigate: (page) => useChatStore.getState().goTo(page),
     selectPortfolio: (id) => useInvestmentStore.getState().setActivePortfolio(id),
+    app: readSettingsSnapshot(),
+    monthlyHistory: state.monthlySnapshots.map(({ date, totalIncome, totalExpense, savings }) => ({ date, totalIncome, totalExpense, savings })),
   }
 }
 
@@ -177,7 +181,13 @@ export const useChatStore = create<ChatStore>()((set, get) => {
       const proposal = findPending(messageId, proposalId)
       if (!proposal) return
       try {
-        useInvestmentStore.getState().applyAssetOperations(proposal.portfolioId, proposal.operations)
+        if (proposal.settings) {
+          const { snapshot, errors } = runSettingsOperations(readSettingsSnapshot(), proposal.settings.operations)
+          if (errors.length > 0) throw new Error(errors.join('\n'))
+          writeSettingsSnapshot(snapshot)
+        } else {
+          useInvestmentStore.getState().applyAssetOperations(proposal.portfolioId, proposal.operations)
+        }
       } catch (error) {
         const message = (error as Error).message
         patchProposal(messageId, proposalId, { status: 'failed', error: message })
@@ -187,18 +197,21 @@ export const useChatStore = create<ChatStore>()((set, get) => {
         return
       }
       patchProposal(messageId, proposalId, { status: 'done' })
-      const count = proposal.operations.length
+      const count = proposal.settings ? proposal.settings.operations.length : proposal.operations.length
       set((state) => ({
         messages: [
           ...state.messages,
           {
             id: newId(),
             role: 'assistant',
-            text: `Pronto — ${count} ${count === 1 ? 'alteração salva' : 'alterações salvas'} em ${proposal.portfolioName}. O gráfico e a lista já refletem a mudança.`,
+            text: proposal.settings
+              ? `Pronto — ${count} ${count === 1 ? 'alteração salva' : 'alterações salvas'} em ${proposal.portfolioName}.`
+              : `Pronto — ${count} ${count === 1 ? 'alteração salva' : 'alterações salvas'} em ${proposal.portfolioName}. O gráfico e a lista já refletem a mudança.`,
           },
         ],
         history: [...state.history, note(`O usuário confirmou a proposta ${proposalId}; as alterações foram salvas.`)],
       }))
+      if (proposal.page) get().goTo(proposal.page)
     },
 
     dismissProposal: (messageId, proposalId) => {

@@ -2,20 +2,33 @@ import { describe, expect, it, vi } from 'vitest'
 import { OpenRouterError, type AssistantMessage, type ChatCompletionParams } from '../lib/openrouter/client'
 import { createEmptyPortfolioData } from '../store/useInvestmentStore'
 import { runAgentTurn } from './agent'
+import type { ExtraAmortizationConfig, FinancingParameters } from '../types/financing'
 import { buildSystemPrompt } from './systemPrompt'
 import { TOOL_DEFINITIONS, type ToolContext } from './tools'
 
+const params: FinancingParameters = {
+  propertyValue: 500000, appraisalValue: 500000, useCustomAppraisal: false, downPayment: 100000, termMonths: 360,
+  annualInterestRateNominal: 10, amortizationType: 'SAC', indexerType: 'TR', monthlyIndexerRate: 0.08,
+  financeInitialExpenses: false, itbiPercent: 3, registryFeePercent: 1, appraisalFeeFixed: 3500, applySFHDiscount: true,
+  borrowerAge: 32, dfiMonthlyRate: 0.01, tcaMonthlyFixed: 25, useCustomMipRate: false, customMipRate: 0.028,
+  monthlyGrossIncome: 16000,
+}
+const extraConfig: ExtraAmortizationConfig = {
+  enabled: false, mode: 'constant', recalculation: 'prazo', monthlyAmount: 1500, targetInstallment: 2000,
+  periodStartMonth: 1, periodEndMonth: 60, lumpSums: [],
+}
+
+const main = {
+  id: 'p1',
+  name: 'Carteira Principal',
+  data: createEmptyPortfolioData(),
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+}
+
 const toolContext = (): ToolContext => ({
   workspace: {
-    portfolios: [
-      {
-        id: 'p1',
-        name: 'Carteira Principal',
-        data: createEmptyPortfolioData(),
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
-      },
-    ],
+    portfolios: [main],
     categories: ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto'],
   },
   viewData: createEmptyPortfolioData(),
@@ -26,6 +39,16 @@ const toolContext = (): ToolContext => ({
   currentPage: 'dashboard',
   navigate: vi.fn(),
   selectPortfolio: vi.fn(),
+  app: {
+    portfolios: [main],
+    activePortfolioId: 'p1',
+    settings: { estrategia: '', alvos: { fiis: 30, acoes: 40, renda_fixa: 30 } },
+    contributionAmount: 1000,
+    monthlyPlan: { incomes: [], expenses: [], categories: ['Outros'] },
+    financing: { params, extraConfig, selectedPresetId: null },
+    projection: { monthlyContribution: 1000, annualRate: 10, years: 10 },
+  },
+  monthlyHistory: [],
 })
 
 const call = (id: string, name: string, args: unknown) => ({

@@ -6,6 +6,7 @@ import { OpenRouterError } from '../lib/openrouter/client'
 import { DEFAULT_MODEL } from '../lib/openrouter/models'
 import { useAiSettingsStore } from './useAiSettingsStore'
 import { buildToolContext, useChatStore } from './useChatStore'
+import { useFinancingStore } from './useFinancingStore'
 import { useInvestmentStore } from './useInvestmentStore'
 
 vi.mock('../chat/agent', () => ({ runAgentTurn: vi.fn() }))
@@ -44,6 +45,8 @@ beforeEach(() => {
   runTurn.mockReset()
   useChatStore.setState(useChatStore.getInitialState(), true)
   invest().clearAllData()
+  useFinancingStore.getState().resetToDefaults()
+  invest().setActiveTab('dashboard')
   useAiSettingsStore.setState({ apiKey: 'sk-or-abc', keyStatus: 'valid', model: DEFAULT_MODEL })
 })
 
@@ -311,5 +314,44 @@ describe('compose helpers', () => {
     })
     chat().newChat()
     expect(chat()).toMatchObject({ messages: [], history: [], typing: false, draft: 'rascunho' })
+  })
+})
+
+const settingsProposal = (overrides: Partial<Proposal> = {}): Proposal => ({
+  id: 'set-1', portfolioId: '', portfolioName: 'Financiamento', summary: 'Prazo', operations: [], rows: [],
+  status: 'pending', page: 'financiamento',
+  settings: {
+    operations: [{ type: 'update_financing', params: { termMonths: 300 } }],
+    rows: [{ label: 'Prazo (meses)', before: '360', after: '300', mode: 'alterar' }],
+  },
+  ...overrides,
+})
+
+describe('confirmProposal — settings', () => {
+  it('applies the settings, reports it and opens the owning page', () => {
+    seedProposal(settingsProposal())
+    chat().confirmProposal('m1', 'set-1')
+    expect(useFinancingStore.getState().params.termMonths).toBe(300)
+    expect(chat().messages[0].proposals?.[0].status).toBe('done')
+    expect(chat().messages[1].text).toBe('Pronto — 1 alteração salva em Financiamento.')
+    expect(invest().activeTab).toBe('financiamento')
+  })
+  it('revalidates against the current data and saves nothing when it no longer applies', () => {
+    seedProposal(settingsProposal({
+      page: 'plano-mensal', portfolioName: 'Plano Mensal',
+      settings: { operations: [{ type: 'remove_monthly_item', kind: 'expense', name: 'Aluguel' }], rows: [] },
+    }))
+    chat().confirmProposal('m1', 'set-1')
+    expect(chat().messages[0].proposals?.[0]).toMatchObject({
+      status: 'failed',
+      error: 'Operação 1 (remove_monthly_item): Não existe despesa chamada "Aluguel".',
+    })
+    expect(invest().activeTab).toBe('dashboard')
+  })
+  it('opens the dashboard after confirming an asset proposal from another page', () => {
+    invest().setActiveTab('history')
+    seedProposal(proposal({ page: 'dashboard' }))
+    chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activeTab).toBe('dashboard')
   })
 })

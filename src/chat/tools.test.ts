@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createEmptyPortfolioData, type Portfolio, type PortfolioData } from '../store/useInvestmentStore'
+import type { ExtraAmortizationConfig, FinancingParameters } from '../types/financing'
 import { TOOL_DEFINITIONS, executeTool, type ToolContext } from './tools'
 
 const portfolio = (id: string, name: string, data: Partial<PortfolioData> = {}): Portfolio => ({
@@ -13,6 +14,18 @@ const portfolio = (id: string, name: string, data: Partial<PortfolioData> = {}):
 const hglg = { Ticker: 'HGLG11', Quantidade: 60, PrecoMedio: 150, Cotacao: 160, Posicao: 9600, Segmento: 'Logística' }
 const itub = { Ticker: 'ITUB4', Quantidade: 100, PrecoMedio: 20, Cotacao: 24, Posicao: 2400, Segmento: 'Bancos' }
 
+const params: FinancingParameters = {
+  propertyValue: 500000, appraisalValue: 500000, useCustomAppraisal: false, downPayment: 100000, termMonths: 360,
+  annualInterestRateNominal: 10, amortizationType: 'SAC', indexerType: 'TR', monthlyIndexerRate: 0.08,
+  financeInitialExpenses: false, itbiPercent: 3, registryFeePercent: 1, appraisalFeeFixed: 3500, applySFHDiscount: true,
+  borrowerAge: 32, dfiMonthlyRate: 0.01, tcaMonthlyFixed: 25, useCustomMipRate: false, customMipRate: 0.028,
+  monthlyGrossIncome: 16000,
+}
+const extraConfig: ExtraAmortizationConfig = {
+  enabled: false, mode: 'constant', recalculation: 'prazo', monthlyAmount: 1500, targetInstallment: 2000,
+  periodStartMonth: 1, periodEndMonth: 60, lumpSums: [],
+}
+
 const context = (): ToolContext => {
   const main = portfolio('p1', 'Carteira Principal', { fiis: [hglg], acoes: [itub] })
   return {
@@ -25,12 +38,26 @@ const context = (): ToolContext => {
     currentPage: 'dashboard',
     navigate: vi.fn(),
     selectPortfolio: vi.fn(),
+    app: {
+      portfolios: [main],
+      activePortfolioId: 'p1',
+      settings: { estrategia: '', alvos: { fiis: 30, acoes: 40, renda_fixa: 30 } },
+      contributionAmount: 1000,
+      monthlyPlan: {
+        incomes: [{ id: 'i1', name: 'Salário', value: 8000, category: 'Salário' }],
+        expenses: [{ id: 'e1', name: 'Aluguel', value: 2000, category: 'Aluguel' }],
+        categories: ['Salário', 'Aluguel', 'Outros'],
+      },
+      financing: { params, extraConfig, selectedPresetId: 'sfh_caixa_sac' },
+      projection: { monthlyContribution: 1000, annualRate: 10, years: 10 },
+    },
+    monthlyHistory: [],
   }
 }
 
 describe('TOOL_DEFINITIONS', () => {
-  it('exposes the read, proposal and navigation tools', () => {
-    expect(TOOL_DEFINITIONS.map((t) => t.function.name)).toEqual(['get_portfolio', 'propose_changes', 'navigate'])
+  it('exposes the read, proposal, navigation and settings tools', () => {
+    expect(TOOL_DEFINITIONS.map((t) => t.function.name)).toEqual(['get_portfolio', 'propose_changes', 'navigate', 'get_app_data', 'propose_settings'])
   })
 })
 
@@ -81,6 +108,7 @@ describe('executeTool — propose_changes', () => {
       portfolioName: 'Carteira Principal',
       summary: 'Importar extrato',
       status: 'pending',
+      page: 'dashboard',
       operations: [
         { type: 'upsert_asset', ticker: 'bbse3', category: 'Ações', quantity: 200, avgPrice: 33.1, mode: 'add' },
         { type: 'upsert_asset', ticker: 'hglg11', category: 'FIIs', quantity: 20, avgPrice: 160.1, mode: 'add' },
@@ -219,5 +247,72 @@ describe('executeTool — navigate', () => {
     expect(bad).toEqual({ ok: false, errors: ['Carteira "Inexistente" não encontrada.'] })
     expect(ctx.navigate).not.toHaveBeenCalled()
     expect(ctx.selectPortfolio).not.toHaveBeenCalled()
+  })
+})
+
+describe('executeTool — get_app_data', () => {
+  it('returns only the requested sections', () => {
+    const data = JSON.parse(executeTool('get_app_data', '{"sections":["plano_mensal","projecao"]}', context()).content)
+    expect(Object.keys(data).sort()).toEqual(['currentPage', 'plano_mensal', 'projecao'])
+    expect(data.plano_mensal).toMatchObject({ totalIncome: 8000, totalExpense: 2000, balance: 6000 })
+    expect(data.projecao).toMatchObject({ monthlyContribution: 1000, annualRate: 10, years: 10 })
+    expect(typeof data.projecao.estimatedFinalValue).toBe('number')
+  })
+  it('returns every section when none is requested and summarises the financing', () => {
+    const data = JSON.parse(executeTool('get_app_data', '{}', context()).content)
+    expect(Object.keys(data).sort()).toEqual(['carteiras', 'currentPage', 'estrategia', 'financiamento', 'historico', 'plano_mensal', 'projecao'])
+    expect(data.carteiras).toEqual([{ name: 'Carteira Principal', active: true, assets: 2, total: 12000 }])
+    expect(data.financiamento.params.termMonths).toBe(360)
+    expect(data.financiamento.summary.financedAmount).toBeGreaterThan(0)
+    expect(data.financiamento.presets.map((p: { id: string }) => p.id)).toContain('mcmv_social')
+  })
+  it('rejects unknown sections', () => {
+    expect(JSON.parse(executeTool('get_app_data', '{"sections":["senha"]}', context()).content).ok).toBe(false)
+  })
+})
+
+describe('executeTool — propose_settings', () => {
+  it('builds a pending settings proposal with preview rows and the owning page', () => {
+    const result = executeTool(
+      'propose_settings',
+      JSON.stringify({ summary: 'Prazo menor.', operations: [{ type: 'update_financing', params: { termMonths: 300 } }] }),
+      context(),
+    )
+    expect(result.proposal).toMatchObject({
+      id: 'prop-1', status: 'pending', page: 'financiamento', portfolioId: '', portfolioName: 'Financiamento',
+      summary: 'Prazo menor.', operations: [], rows: [],
+      settings: {
+        operations: [{ type: 'update_financing', params: { termMonths: 300 } }],
+        rows: [{ label: 'Prazo (meses)', before: '360', after: '300', mode: 'alterar' }],
+      },
+    })
+    expect(JSON.parse(result.content)).toMatchObject({ ok: true, proposalId: 'prop-1', status: 'pending_user_confirmation' })
+  })
+  it('returns validation errors to the model without a proposal', () => {
+    const result = executeTool(
+      'propose_settings',
+      JSON.stringify({ summary: 'x', operations: [{ type: 'set_contribution', amount: '1.234,56' }, { type: 'voar' }, 7] }),
+      context(),
+    )
+    expect(result.proposal).toBeUndefined()
+    expect(JSON.parse(result.content)).toEqual({
+      ok: false,
+      errors: ['Operação 2: tipo desconhecido "voar".', 'Operação 3: tipo desconhecido "7".'],
+    })
+    const second = executeTool('propose_settings', JSON.stringify({ summary: 'x', operations: [{ type: 'set_contribution', amount: '1.234,56' }] }), context())
+    expect(JSON.parse(second.content).errors).toEqual(['Operação 1 (set_contribution): Valor do aporte inválido.'])
+    expect(JSON.parse(executeTool('propose_settings', '{"summary":"x","operations":[]}', context()).content).ok).toBe(false)
+  })
+})
+
+describe('executeTool — propose_changes with an explicit portfolio', () => {
+  it('targets the named portfolio and tags the dashboard page', () => {
+    const ctx = context()
+    ctx.workspace.portfolios.push(portfolio('p2', 'Viagem'))
+    const args = { summary: 's', portfolio: 'viagem', operations: [{ type: 'upsert_asset', ticker: 'PETR4', category: 'Ações', quantity: 1, avgPrice: 30 }] }
+    const result = executeTool('propose_changes', JSON.stringify(args), ctx)
+    expect(result.proposal).toMatchObject({ portfolioId: 'p2', portfolioName: 'Viagem', page: 'dashboard' })
+    const missing = executeTool('propose_changes', JSON.stringify({ ...args, portfolio: 'Nada' }), ctx)
+    expect(JSON.parse(missing.content)).toEqual({ ok: false, errors: ['Carteira "Nada" não encontrada.'] })
   })
 })
