@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { collectCategories } from '../domain/assets'
+import { runOperations, type AssetOperation } from '../domain/operations'
 
 export interface PortfolioData {
   fiis: any[]
@@ -216,6 +218,11 @@ export const mergePortfolioData = (existing: PortfolioData, incoming: PortfolioD
   };
 };
 
+export const resolveWritablePortfolioId = (portfolios: Portfolio[], activePortfolioId: string): string => {
+  if (portfolios.some((p) => p.id === activePortfolioId)) return activePortfolioId;
+  return portfolios[0]?.id || 'default';
+};
+
 interface InvestmentStore {
   portfolios: Portfolio[]
   activePortfolioId: string // 'all' or portfolio ID
@@ -264,6 +271,7 @@ interface InvestmentStore {
   addMonthlySnapshot: (snapshot: MonthlySnapshot, resetExpenses: boolean) => void
   deleteMonthlySnapshot: (id: string) => void
   updateAsset: (type: string, ticker: string, updates: any, targetPortfolioId?: string) => void
+  applyAssetOperations: (targetPortfolioId: string, operations: AssetOperation[]) => void
   historicalTransactions: any[]
   setHistoricalTransactions: (transactions: any[]) => void
   activeTab: string
@@ -834,6 +842,27 @@ export const useInvestmentStore = create<InvestmentStore>()(
           portfolio: updatePortfolioDerivedView(updatedPortfolios, state.activePortfolioId)
         };
       }),
+
+      applyAssetOperations: (targetPortfolioId, operations) => {
+        const state = get();
+        const { workspace, errors } = runOperations(
+          { portfolios: state.portfolios, categories: collectCategories(state.assetCategories, state.portfolios) },
+          targetPortfolioId,
+          operations
+        );
+        if (errors.length > 0) throw new Error(errors.join('\n'));
+
+        const now = new Date().toISOString();
+        const portfolios = workspace.portfolios.map((p, index) =>
+          p.data === state.portfolios[index].data ? p : { ...p, updatedAt: now }
+        );
+
+        set({
+          portfolios,
+          assetCategories: workspace.categories,
+          portfolio: updatePortfolioDerivedView(portfolios, state.activePortfolioId)
+        });
+      },
 
       clearAllData: () => set({
         portfolios: [
