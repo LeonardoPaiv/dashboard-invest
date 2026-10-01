@@ -3,6 +3,7 @@ import { Check, CheckCircle2 } from 'lucide-react'
 import type { Proposal } from '../../chat/tools'
 import { collectCategories } from '../../domain/assets'
 import type { PreviewMode } from '../../domain/operations'
+import type { SettingsPreviewRow } from '../../domain/settingsOperations'
 import { categoryColor } from '../../domain/portfolioView'
 import { brl, num } from '../../lib/format'
 import { useChatStore } from '../../store/useChatStore'
@@ -17,6 +18,12 @@ const CHIP: Record<PreviewMode, string> = {
   renomear: 'bg-amber-500/15 text-amber-400',
   remover: 'bg-red-500/15 text-red-400',
   'excluir categoria': 'bg-red-500/15 text-red-400',
+}
+
+const SETTINGS_CHIP: Record<SettingsPreviewRow['mode'], string> = {
+  criar: 'bg-emerald-500/15 text-emerald-400',
+  alterar: 'bg-amber-500/15 text-amber-400',
+  remover: 'bg-red-500/15 text-red-400',
 }
 
 interface Props {
@@ -62,6 +69,25 @@ export const ProposalCard = ({ messageId, proposal }: Props) => {
           </span>
           <span
             className={`justify-self-end px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide whitespace-nowrap ${CHIP[row.mode]}`}
+          >
+            {row.mode}
+          </span>
+        </div>
+      ))}
+
+      {proposal.settings?.rows.map((row, index) => (
+        <div
+          key={`s-${index}`}
+          className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.6fr)_auto] gap-2 items-center px-4 py-2.5 border-b border-white/5 text-xs"
+        >
+          <span className="font-black truncate">{row.label}</span>
+          <span className="flex items-center gap-1.5 min-w-0 justify-end text-[11px] font-bold">
+            {row.before !== undefined && <span className="text-white/40 line-through truncate">{row.before}</span>}
+            {row.before !== undefined && row.after !== undefined && <span className="text-white/30">→</span>}
+            {row.after !== undefined && <span className="text-white/80 truncate">{row.after}</span>}
+          </span>
+          <span
+            className={`justify-self-end px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide whitespace-nowrap ${SETTINGS_CHIP[row.mode]}`}
           >
             {row.mode}
           </span>

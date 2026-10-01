@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Proposal } from '../../chat/tools'
+import { brl } from '../../lib/format'
 import { DEFAULT_MODEL } from '../../lib/openrouter/models'
 import { useAiSettingsStore } from '../../store/useAiSettingsStore'
 import { useChatStore } from '../../store/useChatStore'
@@ -139,5 +140,31 @@ describe('ChatPanel', () => {
     render(<ChatPanel />)
     await userEvent.click(screen.getByRole('button', { name: 'Nova conversa' }))
     expect(chat().messages).toEqual([])
+  })
+
+  it('shows a settings proposal as before → after rows and applies it on confirm', async () => {
+    useChatStore.setState({
+      messages: [{
+        id: 'a1', role: 'assistant', text: 'Confira:',
+        proposals: [{
+          id: 'set-1', portfolioId: '', portfolioName: 'Estratégia', summary: 'Aporte maior.', operations: [], rows: [],
+          status: 'pending', page: 'strategy',
+          settings: {
+            operations: [{ type: 'set_contribution', amount: 2500 }],
+            rows: [{ label: 'Aporte', before: brl(1000), after: brl(2500), mode: 'alterar' }],
+          },
+        }],
+      }],
+    })
+    render(<ChatPanel />)
+    const card = screen.getByTestId('proposal-set-1')
+    expect(within(card).getByText('→ Estratégia')).toBeInTheDocument()
+    expect(within(card).getByText('Aporte')).toBeInTheDocument()
+    expect(within(card).getByText((_, el) => el?.textContent === brl(1000))).toBeInTheDocument()
+    expect(within(card).getByText((_, el) => el?.textContent === brl(2500))).toBeInTheDocument()
+    expect(within(card).getByText('alterar')).toBeInTheDocument()
+    await userEvent.click(within(card).getByRole('button', { name: 'Confirmar' }))
+    expect(useInvestmentStore.getState().contributionAmount).toBe(2500)
+    expect(within(card).getByText('Salvo em Estratégia')).toBeInTheDocument()
   })
 })
