@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useInvestmentStore } from '../store/useInvestmentStore';
+import { useProjectionStore } from '../store/useProjectionStore';
 import { TrendingUp, RotateCcw, DollarSign, Calendar, Percent, Landmark } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
@@ -17,15 +18,26 @@ export const Projection = () => {
   const initialInvested = portfolio?.total_live || 0;
 
   const [initialCapital, setInitialCapital] = useState(initialInvested);
-  const [monthlyContribution, setMonthlyContribution] = useState(1000);
-  const [annualRate, setAnnualRate] = useState(10);
-  const [years, setYears] = useState(10);
+  const monthlyContribution = useProjectionStore((s) => s.monthlyContribution);
+  const annualRate = useProjectionStore((s) => s.annualRate);
+  const years = useProjectionStore((s) => s.years);
+  const setProjection = useProjectionStore((s) => s.setProjection);
+  const setMonthlyContribution = (value: number) => setProjection({ monthlyContribution: value });
+  const setAnnualRate = (value: number) => setProjection({ annualRate: value });
+  const setYears = (value: number) => setProjection({ years: value });
 
   // States for input text to avoid conversion issues while typing
   const [initialCapitalInput, setInitialCapitalInput] = useState(initialInvested.toString());
-  const [monthlyContributionInput, setMonthlyContributionInput] = useState('1000');
-  const [annualRateInput, setAnnualRateInput] = useState('10');
-  const [yearsInput, setYearsInput] = useState('10');
+  const [monthlyContributionInput, setMonthlyContributionInput] = useState(monthlyContribution.toString());
+  const [annualRateInput, setAnnualRateInput] = useState(annualRate.toString());
+  const [yearsInput, setYearsInput] = useState(years.toString());
+
+  // Follow changes made outside the inputs (e.g. the assistant) without disturbing typing
+  useEffect(() => {
+    setMonthlyContributionInput((text) => (Number(text.replace(',', '.')) === monthlyContribution ? text : monthlyContribution.toString()));
+    setAnnualRateInput((text) => (Number(text.replace(',', '.')) === annualRate ? text : annualRate.toString()));
+    setYearsInput((text) => (Number(text.replace(',', '.')) === years ? text : years.toString()));
+  }, [monthlyContribution, annualRate, years]);
 
   // Keep inputs in sync with initialInvested changes
   useEffect(() => {
