@@ -1,0 +1,143 @@
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Proposal } from '../../chat/tools'
+import { DEFAULT_MODEL } from '../../lib/openrouter/models'
+import { useAiSettingsStore } from '../../store/useAiSettingsStore'
+import { useChatStore } from '../../store/useChatStore'
+import { useInvestmentStore } from '../../store/useInvestmentStore'
+import { ChatPanel } from './ChatPanel'
+
+const chat = () => useChatStore.getState()
+
+const proposal = (overrides: Partial<Proposal> = {}): Proposal => ({
+  id: 'prop-1',
+  portfolioId: 'default',
+  portfolioName: 'Carteira Principal',
+  summary: 'Colunas mapeadas: Papel → Ticker.',
+  operations: [{ type: 'upsert_asset', ticker: 'ITUB4', category: 'Ações', quantity: 10, avgPrice: 30, mode: 'add' }],
+  rows: [{ label: 'ITUB4', category: 'Ações', quantity: 10, avgPrice: 30, mode: 'novo' }],
+  status: 'pending',
+  ...overrides,
+})
+
+beforeEach(() => {
+  useChatStore.setState(useChatStore.getInitialState(), true)
+  useInvestmentStore.getState().clearAllData()
+  useAiSettingsStore.setState({ apiKey: 'sk-or-abc', keyStatus: 'valid', model: DEFAULT_MODEL })
+})
+
+describe('ChatPanel', () => {
+  it.each(['missing', 'invalid'] as const)('asks for the key when the key is %s', (keyStatus) => {
+    useAiSettingsStore.setState({ apiKey: keyStatus === 'missing' ? '' : 'old', keyStatus })
+    render(<ChatPanel />)
+    expect(screen.getByLabelText('Chave da API do OpenRouter')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Pergunte algo ou cole os dados da sua corretora…')).not.toBeInTheDocument()
+  })
+
+  it('shows the empty state with helper cards when the key is valid', () => {
+    render(<ChatPanel />)
+    expect(screen.getByText('Como posso ajudar com sua carteira?')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Registrar compra/ })).toBeInTheDocument()
+    expect(
+      screen.getByText('Nada é salvo sem sua confirmação. Respostas podem conter erros — confira os valores.'),
+    ).toBeInTheDocument()
+  })
+
+  it('fills the composer from the "Registrar compra" helper', async () => {
+    render(<ChatPanel />)
+    await userEvent.click(screen.getByRole('button', { name: /Registrar compra/ }))
+    expect(screen.getByPlaceholderText('Pergunte algo ou cole os dados da sua corretora…')).toHaveValue(
+      'Comprei 100 BBSE3 a 33,10',
+    )
+  })
+
+  it('sends on Enter and keeps Shift+Enter for a new line', async () => {
+    const sendMessage = vi.fn().mockResolvedValue(undefined)
+    useChatStore.setState({ sendMessage })
+    render(<ChatPanel />)
+    const field = screen.getByPlaceholderText('Pergunte algo ou cole os dados da sua corretora…')
+    await userEvent.type(field, 'linha 1{Shift>}{Enter}{/Shift}linha 2')
+    expect(sendMessage).not.toHaveBeenCalled()
+    await userEvent.type(field, '{Enter}')
+    expect(sendMessage).toHaveBeenCalledWith('linha 1\nlinha 2')
+  })
+
+  it('disables sending when there is nothing to send', () => {
+    render(<ChatPanel />)
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
+  })
+
+  it('stages an attached file and lets the user remove it', async () => {
+    render(<ChatPanel />)
+    const file = new File(['Ativo;Cotas\nTAEE11;80\n'], 'posicao.csv', { type: 'text/csv' })
+    await userEvent.upload(screen.getByLabelText('Anexar planilha'), file)
+    expect(chat().stagedFile).toBe(file)
+    expect(screen.getByText('posicao.csv')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enviar' })).toBeEnabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Remover anexo' }))
+    expect(chat().stagedFile).toBeNull()
+  })
+
+  it('renders user and assistant messages, the attached file and the typing indicator', () => {
+    useChatStore.setState({
+      typing: true,
+      messages: [
+        { id: 'u1', role: 'user', text: 'Importa o extrato', file: { name: 'extrato.xlsx', meta: 'Planilha · 3 abas' } },
+        { id: 'a1', role: 'assistant', text: 'Encontrei 4 posições.' },
+      ],
+    })
+    render(<ChatPanel />)
+    expect(screen.getByText('Importa o extrato')).toBeInTheDocument()
+    expect(screen.getByText('extrato.xlsx')).toBeInTheDocument()
+    expect(screen.getByText('Planilha · 3 abas')).toBeInTheDocument()
+    expect(screen.getByText('Encontrei 4 posições.')).toBeInTheDocument()
+    expect(screen.getByText('space-bunny-alpha está analisando…')).toBeInTheDocument()
+    expect(screen.queryByText('Como posso ajudar com sua carteira?')).not.toBeInTheDocument()
+  })
+
+  it('shows a pending proposal and saves it on confirm', async () => {
+    useChatStore.setState({ messages: [{ id: 'a1', role: 'assistant', text: 'Confira:', proposals: [proposal()] }] })
+    render(<ChatPanel />)
+    const card = screen.getByTestId('proposal-prop-1')
+    expect(within(card).getByText('ITUB4')).toBeInTheDocument()
+    expect(within(card).getByText('novo')).toBeInTheDocument()
+    expect(within(card).getByText('Colunas mapeadas: Papel → Ticker.')).toBeInTheDocument()
+    expect(within(card).getByText('→ Carteira Principal')).toBeInTheDocument()
+
+    await userEvent.click(within(card).getByRole('button', { name: 'Confirmar' }))
+    expect(useInvestmentStore.getState().portfolios[0].data.acoes[0]).toMatchObject({ Ticker: 'ITUB4', Quantidade: 10 })
+    expect(within(card).getByText('Salvo em Carteira Principal')).toBeInTheDocument()
+    expect(within(card).queryByRole('button', { name: 'Confirmar' })).not.toBeInTheDocument()
+  })
+
+  it('dismisses a proposal without saving', async () => {
+    useChatStore.setState({ messages: [{ id: 'a1', role: 'assistant', text: 'Confira:', proposals: [proposal()] }] })
+    render(<ChatPanel />)
+    await userEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    expect(screen.getByText('Descartado')).toBeInTheDocument()
+    expect(useInvestmentStore.getState().portfolios[0].data.acoes).toEqual([])
+  })
+
+  it('shows why a proposal could not be saved', () => {
+    useChatStore.setState({
+      messages: [
+        {
+          id: 'a1',
+          role: 'assistant',
+          text: 'Confira:',
+          proposals: [proposal({ status: 'failed', error: 'Operação 1 (remove_asset): O ativo ITUB4 não existe na carteira.' })],
+        },
+      ],
+    })
+    render(<ChatPanel />)
+    expect(screen.getByText(/Não foi salvo/)).toHaveTextContent('O ativo ITUB4 não existe na carteira.')
+  })
+
+  it('starts a new conversation', async () => {
+    useChatStore.setState({ messages: [{ id: 'a1', role: 'assistant', text: 'Olá' }] })
+    render(<ChatPanel />)
+    await userEvent.click(screen.getByRole('button', { name: 'Nova conversa' }))
+    expect(chat().messages).toEqual([])
+  })
+})
