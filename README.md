@@ -106,7 +106,7 @@ Both are reached through Vite dev-server proxies (`/api` → `brapi.dev`, `/i10`
 ## 🔒 Data and privacy
 
 - Everything is persisted in `localStorage` under the key `investment-storage`. No server, no database, no telemetry.
-- **Backup / restore:** the sidebar exports a versioned `.json` (`investdash-backup-YYYY-MM-DD.json`) containing portfolios, settings, snapshots, watchlists, equity history, monthly plan and import configuration. Importing a backup replaces the current state.
+- **Backup / restore:** the sidebar exports a versioned `.json` (`investdash-backup-YYYY-MM-DD.json`) containing portfolios, settings, snapshots, watchlists, equity history and monthly plan. Importing a backup replaces the current state.
 - Clearing your browser data deletes your portfolio. Export backups regularly.
 - The `data/` folder holds local JSON fixtures and is git-ignored.
 

@@ -19,6 +19,19 @@ const categories = ['Ações', 'FIIs', 'Renda Fixa', 'Tesouro Direto', 'Cripto']
 const assets = [asset('ITUB4', 'Ações', 600), asset('WEGE3', 'Ações', 200), asset('HGLG11', 'FIIs', 200)]
 
 describe('buildPortfolioView', () => {
+  it('keeps one row per portfolio for the same ticker, with distinct keys and the portfolio in the subtitle', () => {
+    const dup = [
+      asset('ITUB4', 'Ações', 600, { portfolioId: 'p1', portfolioName: 'Principal' }),
+      asset('ITUB4', 'Ações', 200, { portfolioId: 'p2', portfolioName: 'Aposentadoria' }),
+    ]
+    const all = buildPortfolioView(dup, categories, 'Todos')
+    expect(all.rows).toHaveLength(2)
+    expect(new Set(all.rows.map((r) => r.key)).size).toBe(2)
+    expect(all.rows.map((r) => r.subtitle)).toEqual(['Ações · Seg · Principal', 'Ações · Seg · Aposentadoria'])
+    const filtered = buildPortfolioView(dup, categories, 'Ações')
+    expect(filtered.rows.map((r) => r.subtitle)).toEqual(['Seg · Principal', 'Seg · Aposentadoria'])
+  })
+
   it('builds pills for "Todos" plus each category that has assets', () => {
     const view = buildPortfolioView(assets, categories, 'Todos')
     expect(view.total).toBe(1000)

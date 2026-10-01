@@ -82,9 +82,9 @@ export const PortfolioPanel = () => {
             </div>
           </div>
           <div className="flex-[1_1_200px] min-w-0 grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-1.5">
-            {view.slices.map((slice) => (
+            {view.slices.map((slice, index) => (
               <button
-                key={slice.name}
+                key={`${index}:${slice.name}`}
                 type="button"
                 data-testid={`legend-${slice.name}`}
                 disabled={!slice.selectable}

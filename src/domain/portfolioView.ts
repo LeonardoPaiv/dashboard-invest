@@ -85,9 +85,9 @@ export function buildPortfolioView(assets: Asset[], categories: string[], reques
   }
 
   const rows: AssetRow[] = visible.map((a) => ({
-    key: `${a.section}:${a.key}`,
+    key: `${a.portfolioId ?? ''}:${a.section}:${a.key}`,
     ticker: a.ticker,
-    subtitle: isAll ? `${a.category} · ${a.segment}` : a.segment,
+    subtitle: [isAll ? `${a.category} · ${a.segment}` : a.segment, a.portfolioName].filter(Boolean).join(' · '),
     price: a.price,
     avgPrice: a.avgPrice,
     allocation: share(a.value, base),

@@ -106,7 +106,7 @@ Ambas passam pelos proxies do servidor de desenvolvimento do Vite (`/api` → `b
 ## 🔒 Dados e privacidade
 
 - Tudo é persistido no `localStorage`, na chave `investment-storage`. Sem servidor, sem banco de dados, sem telemetria.
-- **Backup / restauração:** a barra lateral exporta um `.json` versionado (`investdash-backup-AAAA-MM-DD.json`) com carteiras, configurações, snapshots, listas, histórico patrimonial, plano mensal e configuração de importação. Importar um backup substitui o estado atual.
+- **Backup / restauração:** a barra lateral exporta um `.json` versionado (`investdash-backup-AAAA-MM-DD.json`) com carteiras, configurações, snapshots, listas, histórico patrimonial e plano mensal. Importar um backup substitui o estado atual.
 - Limpar os dados do navegador apaga a sua carteira. Exporte backups com frequência.
 - A pasta `data/` guarda JSONs locais e está no `.gitignore`.
 

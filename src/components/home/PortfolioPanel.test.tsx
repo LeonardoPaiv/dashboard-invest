@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchQuotes } from '../../services/brapi'
@@ -83,5 +83,42 @@ describe('PortfolioPanel', () => {
   it('does not ask for quotes when there is nothing quotable', () => {
     render(<PortfolioPanel />)
     expect(quotes).not.toHaveBeenCalled()
+  })
+
+  it('renders one row per portfolio when a ticker is held in two portfolios, without key warnings', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    invest().applyAssetOperations('default', [
+      { type: 'upsert_asset', ticker: 'ITUB4', category: 'Ações', quantity: 10, avgPrice: 60, mode: 'add' },
+    ])
+    const other = invest().addPortfolio('Aposentadoria')
+    invest().applyAssetOperations(other, [
+      { type: 'upsert_asset', ticker: 'ITUB4', category: 'Ações', quantity: 5, avgPrice: 60, mode: 'add' },
+    ])
+    invest().setActivePortfolio('all')
+    render(<PortfolioPanel />)
+    const rows = screen.getAllByTestId('asset-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[1]).toHaveTextContent('Aposentadoria')
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+  })
+
+  it('runs one more refresh when the ticker set changes while a fetch is in flight', async () => {
+    seed()
+    let release: (value: never[]) => void = () => {}
+    quotes.mockReset()
+    quotes.mockImplementationOnce(() => new Promise((resolve) => { release = resolve as any }))
+    quotes.mockResolvedValue([])
+    render(<PortfolioPanel />)
+    await waitFor(() => expect(quotes).toHaveBeenCalledTimes(1))
+    act(() => {
+      invest().applyAssetOperations('default', [
+        { type: 'upsert_asset', ticker: 'PETR4', category: 'Ações', quantity: 1, avgPrice: 30, mode: 'add' },
+      ])
+    })
+    expect(quotes).toHaveBeenCalledTimes(1)
+    await act(async () => { release([]) })
+    await waitFor(() => expect(quotes).toHaveBeenCalledTimes(2))
+    expect(quotes.mock.calls[1][0]).toContain('PETR4')
   })
 })

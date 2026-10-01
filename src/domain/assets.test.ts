@@ -22,6 +22,17 @@ const portfolio = (data: PortfolioData): Portfolio => ({
 })
 
 describe('listAssets', () => {
+  it('carries the portfolio tags of consolidated records and leaves them absent otherwise', () => {
+    const tagged: PortfolioData = {
+      ...createEmptyPortfolioData(),
+      acoes: [{ Ticker: 'ITUB4', Quantidade: 1, Cotacao: 10, Posicao: 10, portfolioId: 'p1', portfolioName: 'Principal', portfolioColor: '#fff' }],
+    }
+    expect(listAssets(tagged)[0]).toMatchObject({ portfolioId: 'p1', portfolioName: 'Principal' })
+    const plain = listAssets(sample())[0]
+    expect(plain.portfolioId).toBeUndefined()
+    expect(plain.portfolioName).toBeUndefined()
+  })
+
   it('returns an empty list for null data', () => {
     expect(listAssets(null)).toEqual([])
   })

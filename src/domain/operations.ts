@@ -82,8 +82,11 @@ function withTotals(data: PortfolioData): PortfolioData {
   }
 }
 
-const displayName = (section: SectionKey, ticker: string, previous?: any): string =>
-  section === 'acoes' || section === 'fiis' ? normalizeTicker(ticker) : previous ? rawName(previous) : ticker.trim()
+const displayName = (section: SectionKey, ticker: string, previous?: any): string => {
+  if (section === 'acoes' || section === 'fiis') return normalizeTicker(ticker)
+  if (previous) return rawName(previous)
+  return section === 'manualAssets' ? normalizeTicker(ticker) : ticker.trim()
+}
 
 function buildRecord(
   section: SectionKey,
@@ -94,12 +97,13 @@ function buildRecord(
   price: number,
   previous: any,
   keepSegment: boolean,
+  position: number = quantity * price,
 ): any {
   const rest: any = { ...(previous || {}) }
   for (const field of ['Ticker', 'Titulo', 'Ativo', 'Categoria', 'portfolioId', 'portfolioName', 'portfolioColor']) {
     delete rest[field]
   }
-  const base = { ...rest, Quantidade: quantity, PrecoMedio: avgPrice, Cotacao: price, Posicao: quantity * price }
+  const base = { ...rest, Quantidade: quantity, PrecoMedio: avgPrice, Cotacao: price, Posicao: position }
   const segment = keepSegment && rest.Segmento ? rest.Segmento : category
   if (section === 'tesouro') return { ...base, Titulo: name, Vencimento: rest.Vencimento ?? '-' }
   if (section === 'renda_fixa') return { ...base, Ativo: name, Indexador: rest.Indexador ?? '-' }
@@ -122,15 +126,18 @@ function put(data: PortfolioData, found: Located | null, section: SectionKey, re
 
 function moveRecord(data: PortfolioData, found: Located, category: string): PortfolioData {
   const section = sectionForCategory(category)
+  const quantity = Number(found.record.Quantidade) || 0
+  const price = unitPrice(found.record)
   const record = buildRecord(
     section,
     displayName(section, rawName(found.record), found.record),
     category,
-    Number(found.record.Quantidade) || 0,
+    quantity,
     Number(found.record.PrecoMedio) || 0,
-    unitPrice(found.record),
+    price,
     found.record,
     false,
+    quantity > 0 ? quantity * price : Number(found.record.Posicao) || 0,
   )
   return put(data, found, section, record)
 }
@@ -167,6 +174,11 @@ function applyAssetOperation(
   const previousQuantity = found ? Number(found.record.Quantidade) || 0 : 0
   const previousAvgPrice = found ? Number(found.record.PrecoMedio) || 0 : 0
   const adding = found !== null && op.mode === 'add'
+  if (adding && previousQuantity <= 0 && (Number(found.record.Posicao) || 0) > 0) {
+    throw new Error(
+      `O ativo ${ticker} tem posição sem quantidade; use mode "set" para informar a posição completa.`,
+    )
+  }
   const quantity = adding ? previousQuantity + op.quantity : op.quantity
   const avgPrice = adding
     ? (previousQuantity * previousAvgPrice + op.quantity * op.avgPrice) / quantity

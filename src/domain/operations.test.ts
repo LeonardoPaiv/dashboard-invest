@@ -174,6 +174,66 @@ describe('runOperations — categories', () => {
   })
 })
 
+describe('runOperations — legacy rows without quantity', () => {
+  const legacy = { Titulo: 'Tesouro Selic 2029', Quantidade: 0, PrecoMedio: 0, Posicao: 5000, Vencimento: '2029-03-01' }
+
+  it('keeps the position and total_live when a quantity-less record is moved', () => {
+    const { workspace: ws, errors } = runOperations(workspace({ tesouro: [legacy], total_live: 5000 }), 'p1', [
+      { type: 'move_asset', ticker: 'Tesouro Selic 2029', category: 'Cripto' },
+    ])
+    expect(errors).toEqual([])
+    const data = ws.portfolios[0].data
+    expect(data.tesouro).toEqual([])
+    expect(data.manualAssets[0]).toMatchObject({ Ticker: 'Tesouro Selic 2029', Quantidade: 0, Posicao: 5000 })
+    expect(data.total_live).toBe(5000)
+  })
+
+  it('keeps the position of quantity-less records when a category is renamed', () => {
+    const rec = { id: 'x', Ticker: 'LEGADO', Categoria: 'Cripto', PrecoMedio: 0, Posicao: 700, Segmento: 'Cripto' }
+    const { workspace: ws } = runOperations(workspace({ manualAssets: [rec] }), 'p1', [
+      { type: 'rename_category', from: 'Cripto', to: 'Moedas' },
+    ])
+    expect(ws.portfolios[0].data.manualAssets[0]).toMatchObject({ Categoria: 'Moedas', Posicao: 700 })
+    expect(ws.portfolios[0].data.total_live).toBe(700)
+  })
+
+  it('rejects "add" onto a record with a position but no quantity, and still allows "set"', () => {
+    const base = workspace({ tesouro: [legacy] })
+    const add = runOperations(base, 'p1', [
+      { type: 'upsert_asset', ticker: 'Tesouro Selic 2029', category: 'Tesouro Direto', quantity: 1, avgPrice: 100, mode: 'add' },
+    ])
+    expect(add.errors).toHaveLength(1)
+    expect(add.errors[0]).toContain(
+      'O ativo Tesouro Selic 2029 tem posição sem quantidade; use mode "set" para informar a posição completa.',
+    )
+    expect(add.workspace.portfolios[0].data.tesouro[0].Posicao).toBe(5000)
+    const set = runOperations(base, 'p1', [
+      { type: 'upsert_asset', ticker: 'Tesouro Selic 2029', category: 'Tesouro Direto', quantity: 2, avgPrice: 2400, mode: 'set' },
+    ])
+    expect(set.errors).toEqual([])
+    expect(set.workspace.portfolios[0].data.tesouro[0].Quantidade).toBe(2)
+  })
+})
+
+describe('new custom-category tickers', () => {
+  it('uppercases the name of a new manual asset but keeps tesouro/renda fixa names and stored names', () => {
+    const { workspace: ws } = runOperations(workspace({ manualAssets: [{ ...btc, Ticker: 'Eth' }] }), 'p1', [
+      { type: 'upsert_asset', ticker: 'sol', category: 'Cripto', quantity: 1, avgPrice: 10, mode: 'add' },
+      { type: 'upsert_asset', ticker: 'eth', category: 'Cripto', quantity: 1, avgPrice: 10, mode: 'add' },
+      { type: 'upsert_asset', ticker: 'Tesouro Selic 2029', category: 'Tesouro Direto', quantity: 1, avgPrice: 10, mode: 'add' },
+    ])
+    expect(ws.portfolios[0].data.manualAssets.map((r: any) => r.Ticker)).toEqual(['Eth', 'SOL'])
+    expect(ws.portfolios[0].data.tesouro[0].Titulo).toBe('Tesouro Selic 2029')
+  })
+
+  it('previews the uppercased name', () => {
+    const rows = describeOperations(workspace(), 'p1', [
+      { type: 'upsert_asset', ticker: 'sol', category: 'Cripto', quantity: 1, avgPrice: 10, mode: 'add' },
+    ])
+    expect(rows[0].label).toBe('SOL')
+  })
+})
+
 describe('describeOperations', () => {
   it('labels each row with what will happen', () => {
     const rows = describeOperations(workspace({ fiis: [hglg], manualAssets: [btc] }), 'p1', [

@@ -19,11 +19,16 @@ function quotableTickers(): string[] {
 export function useQuoteRefresh(): void {
   const tickerKey = useInvestmentStore(() => quotableTickers().join(','))
   const busy = useRef(false)
+  const pending = useRef(false)
 
   useEffect(() => {
     const refresh = async () => {
       const tickers = quotableTickers()
-      if (busy.current || tickers.length === 0) return
+      if (tickers.length === 0) return
+      if (busy.current) {
+        pending.current = true
+        return
+      }
       busy.current = true
       try {
         const quotes = await fetchQuotes(tickers)
@@ -36,6 +41,10 @@ export function useQuoteRefresh(): void {
         console.error('Erro ao atualizar cotações:', error)
       } finally {
         busy.current = false
+        if (pending.current) {
+          pending.current = false
+          void refresh()
+        }
       }
     }
 

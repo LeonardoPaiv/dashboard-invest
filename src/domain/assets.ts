@@ -57,6 +57,9 @@ export interface Asset {
   avgPrice: number
   price: number
   value: number
+  /** Presentes só na visão consolidada ("Todas"). */
+  portfolioId?: string
+  portfolioName?: string
 }
 
 function toAsset(record: any, section: SectionKey): Asset {
@@ -75,6 +78,8 @@ function toAsset(record: any, section: SectionKey): Asset {
     avgPrice: Number(record.PrecoMedio) || 0,
     price,
     value: Number(record.Posicao) || quantity * price,
+    ...(record.portfolioId ? { portfolioId: String(record.portfolioId) } : {}),
+    ...(record.portfolioName ? { portfolioName: String(record.portfolioName) } : {}),
   }
 }
 
