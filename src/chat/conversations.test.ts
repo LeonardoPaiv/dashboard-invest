@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_CONVERSATIONS, conversationTitle, forStorage, relevantConversation, saveConversation, type Conversation } from './conversations'
+import { MAX_CONVERSATIONS, MAX_STORED_CHARS, conversationTitle, forStorage, relevantConversation, saveConversation, type Conversation } from './conversations'
 
 const conv = (id: string, page: Conversation['page'], updatedAt: string, extra: Partial<Conversation> = {}): Conversation => ({
   id, title: id, page, createdAt: updatedAt, updatedAt, messages: [], history: [], ...extra,
@@ -39,5 +39,18 @@ describe('conversations', () => {
     expect(stored.history[1].content).toBe('ok')
     expect((stored.history[2].content as string).length).toBeLessThan(4100)
     expect(original.history[0].content).toBe(big)
+  })
+  it('drops the oldest conversations to stay within the storage budget, keeping the newest', () => {
+    const entry = { role: 'user' as const, content: 'x'.repeat(3900) }
+    const list = ['e', 'd', 'c', 'b', 'a'].map((id, i) =>
+      conv(id, 'dashboard', `2026-01-0${5 - i}`, { history: Array.from({ length: 80 }, () => entry) }),
+    )
+    expect(JSON.stringify(list).length).toBeGreaterThan(MAX_STORED_CHARS)
+    const stored = forStorage(list)
+    expect(JSON.stringify(stored).length).toBeLessThanOrEqual(MAX_STORED_CHARS)
+    expect(stored.length).toBeLessThan(list.length)
+    expect(stored.map((c) => c.id)).toEqual(['e', 'd', 'c', 'b', 'a'].slice(0, stored.length))
+    const huge = [conv('only', 'dashboard', '2026-01-01', { history: Array.from({ length: 400 }, () => entry) })]
+    expect(forStorage(huge).map((c) => c.id)).toEqual(['only'])
   })
 })

@@ -113,6 +113,20 @@ const safeStorage = {
   },
 }
 
+function memoisedPartialize() {
+  let lastConversations: Conversation[] | undefined
+  let lastConversationId: string | null | undefined
+  let last: Pick<ChatStore, 'conversations' | 'conversationId'> | undefined
+  return (state: ChatStore) => {
+    if (!last || state.conversations !== lastConversations || state.conversationId !== lastConversationId) {
+      lastConversations = state.conversations
+      lastConversationId = state.conversationId
+      last = { conversations: forStorage(state.conversations), conversationId: state.conversationId }
+    }
+    return last
+  }
+}
+
 export const useChatStore = create<ChatStore>()(
   persist(
     (set, get) => {
@@ -183,7 +197,15 @@ export const useChatStore = create<ChatStore>()(
 
           const { apiKey, model } = useAiSettingsStore.getState()
           try {
-            const result = await runAgentTurn({ apiKey, model, history, userContent, toolContext: buildToolContext })
+            const result = await runAgentTurn({ apiKey, model, history, userContent, toolContext: () => {
+                const context = buildToolContext()
+                const live = () => get().session === session
+                return {
+                  ...context,
+                  navigate: (page) => { if (live()) context.navigate(page) },
+                  selectPortfolio: (id) => { if (live()) context.selectPortfolio(id) },
+                }
+              } })
             if (get().session !== session) return
             set((state) => ({
               typing: false,
@@ -227,7 +249,11 @@ export const useChatStore = create<ChatStore>()(
               if (errors.length > 0) throw new Error(errors.join('\n'))
               writeSettingsSnapshot(snapshot)
             } else {
-              useInvestmentStore.getState().applyAssetOperations(proposal.portfolioId, proposal.operations)
+              const investment = useInvestmentStore.getState()
+              investment.applyAssetOperations(proposal.portfolioId, proposal.operations)
+              if (investment.activePortfolioId !== 'all' && investment.activePortfolioId !== proposal.portfolioId) {
+                investment.setActivePortfolio(proposal.portfolioId)
+              }
             }
           } catch (error) {
             const message = (error as Error).message
@@ -316,7 +342,7 @@ export const useChatStore = create<ChatStore>()(
     {
       name: 'chat-conversations',
       storage: createJSONStorage(() => safeStorage),
-      partialize: (state) => ({ conversations: forStorage(state.conversations), conversationId: state.conversationId }),
+      partialize: memoisedPartialize(),
       merge: (persisted, current) => {
         const saved = (persisted || {}) as Partial<Pick<ChatStore, 'conversations' | 'conversationId'>>
         const conversations = Array.isArray(saved.conversations) ? saved.conversations : []
@@ -351,7 +377,7 @@ useChatStore.subscribe((state, previous) => {
     conversations: saveConversation(state.conversations, {
       id,
       title: conversationTitle(state.messages),
-      page: existing?.page ?? currentPage(),
+      page: currentPage(),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       messages: state.messages,

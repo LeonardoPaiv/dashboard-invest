@@ -44,6 +44,7 @@ type FieldRule = { label: string } & (
 
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 const isNum = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+const given = (value: unknown): boolean => value !== undefined && value !== null
 const str = (value: unknown): string => (typeof value === 'string' ? value.trim() : '')
 const show = (value: unknown): string =>
   typeof value === 'boolean' ? (value ? 'sim' : 'não') : typeof value === 'number' ? num(value) : String(value ?? '—')
@@ -280,7 +281,7 @@ function applyOne(s: SettingsSnapshot, op: SettingsOperation, createId: () => st
       const { kind, item } = locateItem(s, op)
       const rows: SettingsPreviewRow[] = []
       let next = { ...item }
-      if (op.newName !== undefined) {
+      if (given(op.newName)) {
         const newName = str(op.newName)
         if (!newName) throw new Error('Nome do item vazio.')
         if (s.monthlyPlan[kind.key].some((o) => o.id !== item.id && sameName(o.name, newName))) {
@@ -291,7 +292,7 @@ function applyOne(s: SettingsSnapshot, op: SettingsOperation, createId: () => st
           next = { ...next, name: newName }
         }
       }
-      if (op.value !== undefined) {
+      if (given(op.value)) {
         const value = itemValue(op.value, item.name)
         if (value !== item.value) {
           rows.push({ label: `${kind.label} ${item.name}`, before: brl(item.value), after: brl(value), mode: 'alterar' })
@@ -299,7 +300,7 @@ function applyOne(s: SettingsSnapshot, op: SettingsOperation, createId: () => st
         }
       }
       let categories = s.monthlyPlan.categories
-      if (op.category !== undefined) {
+      if (given(op.category)) {
         const category = canonicalCategory(s.monthlyPlan, str(op.category) || 'Outros')
         if (category !== item.category) {
           rows.push({ label: `${kind.label} ${item.name}`, before: item.category, after: category, mode: 'alterar' })
@@ -375,7 +376,7 @@ function applyOne(s: SettingsSnapshot, op: SettingsOperation, createId: () => st
         throw new Error('Mês inválido para o aporte avulso.')
       }
       if (!isNum(op.amount) || op.amount <= 0) throw new Error('Valor inválido para o aporte avulso.')
-      const recalculation = (op.recalculation ?? 'prazo') as AmortizationRecalculation
+      const recalculation = (given(op.recalculation) ? op.recalculation : 'prazo') as AmortizationRecalculation
       if (recalculation !== 'prazo' && recalculation !== 'parcela') throw new Error('recalculation: use "prazo" ou "parcela".')
       const description = str(op.description) || 'Aporte avulso'
       const lumpSum = { id: createId(), month: op.month, amount: op.amount, recalculation, description }
@@ -411,7 +412,7 @@ function applyOne(s: SettingsSnapshot, op: SettingsOperation, createId: () => st
     }
     case 'set_projection': {
       const patch: Record<string, unknown> = {}
-      for (const key of Object.keys(PROJECTION_RULES)) if (key in op) patch[key] = op[key]
+      for (const key of Object.keys(PROJECTION_RULES)) if (given(op[key])) patch[key] = op[key]
       const { next, rows } = patchFields(s.projection, patch, PROJECTION_RULES, 'projeção')
       return { snapshot: { ...s, projection: next }, rows }
     }

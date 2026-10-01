@@ -15,6 +15,7 @@ export interface Conversation {
 
 export const MAX_CONVERSATIONS = 30
 export const MAX_STORED_CONTENT = 4000
+export const MAX_STORED_CHARS = 1_000_000
 const TITLE_LENGTH = 48
 const OMITTED = '\n[conteúdo longo omitido ao salvar a conversa]'
 
@@ -35,9 +36,9 @@ export function relevantConversation(list: Conversation[], page: PageId): Conver
   return list.filter((item) => item.page === page).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
 }
 
-/** Planilhas anexadas chegam a 60 mil caracteres por mensagem; no disco fica só o começo. */
+/** Planilhas anexadas chegam a 60 mil caracteres por mensagem; no disco fica só o começo, dentro de um orçamento total. */
 export function forStorage(list: Conversation[]): Conversation[] {
-  return list.map((conversation) => ({
+  const result = list.map((conversation) => ({
     ...conversation,
     history: conversation.history.map((message) =>
       typeof message.content === 'string' && message.content.length > MAX_STORED_CONTENT
@@ -45,4 +46,7 @@ export function forStorage(list: Conversation[]): Conversation[] {
         : message,
     ),
   }))
+  // a lista vem da mais nova para a mais antiga: descarta as mais antigas, mantendo ao menos a mais nova
+  while (result.length > 1 && JSON.stringify(result).length > MAX_STORED_CHARS) result.pop()
+  return result
 }

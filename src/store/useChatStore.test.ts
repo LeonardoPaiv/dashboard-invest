@@ -247,6 +247,22 @@ describe('buildToolContext — navigation', () => {
 })
 
 describe('confirmProposal', () => {
+  it('shows the target portfolio after confirming an asset proposal aimed at another one', () => {
+    invest().addPortfolio('Aposentadoria')
+    const other = invest().portfolios.find((p) => p.name === 'Aposentadoria')!.id
+    invest().setActivePortfolio('default')
+    seedProposal(proposal({ portfolioId: other, portfolioName: 'Aposentadoria', page: 'dashboard' }))
+    chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activePortfolioId).toBe(other)
+  })
+
+  it('leaves the consolidated view alone after confirming an asset proposal', () => {
+    invest().setActivePortfolio('all')
+    seedProposal(proposal({ page: 'dashboard' }))
+    chat().confirmProposal('m1', 'prop-1')
+    expect(invest().activePortfolioId).toBe('all')
+  })
+
   it('applies the operations, marks the proposal done and tells the user and the model', () => {
     seedProposal(proposal())
     chat().confirmProposal('m1', 'prop-1')
@@ -435,6 +451,38 @@ describe('saved conversations', () => {
     await pending
     expect(chat().messages.map((m) => m.text)).toEqual(['primeira', 'Olá!'])
     expect(chat().typing).toBe(false)
+  })
+
+  it('does not navigate from a turn the user already walked away from', async () => {
+    let toolContext: () => ReturnType<typeof buildToolContext> = buildToolContext
+    let resolve: (value: Awaited<ReturnType<typeof runAgentTurn>>) => void = () => {}
+    runTurn.mockImplementationOnce((options) => {
+      toolContext = options.toolContext as () => ReturnType<typeof buildToolContext>
+      return new Promise((r) => (resolve = r))
+    })
+    const pending = chat().sendMessage('oi')
+    await Promise.resolve()
+    chat().newChat()
+    toolContext().navigate('financiamento')
+    toolContext().selectPortfolio('all')
+    resolve({ history: [], reply: 'atrasada', proposals: [] })
+    await pending
+    expect(invest().activeTab).toBe('dashboard')
+    expect(invest().activePortfolioId).toBe('default')
+    expect(chat().panelOpen).toBe(false)
+  })
+
+  it('updates the conversation page to where it was last used', async () => {
+    invest().setActiveTab('financiamento')
+    reply('ok')
+    await chat().sendMessage('oi')
+    expect(chat().conversations[0].page).toBe('financiamento')
+    invest().setActiveTab('strategy')
+    reply('ok de novo')
+    await chat().sendMessage('e agora')
+    expect(chat().conversations[0].page).toBe('strategy')
+    chat().openRelevant('strategy')
+    expect(chat().messages.map((m) => m.text)).toEqual(['oi', 'ok', 'e agora', 'ok de novo'])
   })
 
   it('deletes a conversation and clears the screen when it was the open one', async () => {

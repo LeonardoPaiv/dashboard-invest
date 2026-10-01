@@ -33,7 +33,7 @@ export const ConversationMenu = () => {
           <div
             role="menu"
             aria-label="Conversas salvas"
-            className="absolute right-0 top-[42px] z-20 w-72 max-h-80 overflow-y-auto custom-scrollbar bg-card border border-white/10 rounded-2xl shadow-2xl p-1.5"
+            className="absolute right-0 top-[42px] z-20 w-72 max-w-[calc(100vw-2rem)] max-h-80 overflow-y-auto custom-scrollbar bg-card border border-white/10 rounded-2xl shadow-2xl p-1.5"
           >
             {conversations.length === 0 && (
               <div className="px-3 py-4 text-center text-[11px] text-white/40 font-semibold">Nenhuma conversa salva ainda.</div>
