@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { OpenRouterError, createChatCompletion, validateKey } from './client'
+import { OpenRouterError, WEB_SEARCH_TOOL, createChatCompletion, validateKey } from './client'
 
 const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -69,6 +69,36 @@ describe('createChatCompletion', () => {
     await expect(createChatCompletion(params, fetchMock)).rejects.toMatchObject({
       status: 502,
       message: 'Provider returned error',
+    })
+  })
+
+  it('appends the web search server tool after the function tools when enabled', async () => {
+    const tool = { type: 'function' as const, function: { name: 'get_portfolio', description: 'd', parameters: {} } }
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, { choices: [{ message: { content: 'ok' } }] }))
+    await createChatCompletion({ ...params, tools: [tool], webSearch: true }, fetchMock)
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).tools).toEqual([tool, WEB_SEARCH_TOOL])
+    expect(WEB_SEARCH_TOOL.type).toBe('openrouter:web_search')
+  })
+
+  it('returns url citations, deduplicated, apart from the message content', async () => {
+    const cite = (url: string, title?: string) => ({ type: 'url_citation', url_citation: { url, title, content: 'x' } })
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse(200, {
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'CDI 14,9%',
+              annotations: [cite('https://a.com/1', ' A '), cite('https://a.com/1', 'A'), { type: 'file' }, cite('https://b.com')],
+            },
+          },
+        ],
+      }),
+    )
+    await expect(createChatCompletion({ ...params, webSearch: true }, fetchMock)).resolves.toEqual({
+      role: 'assistant',
+      content: 'CDI 14,9%',
+      citations: [{ url: 'https://a.com/1', title: 'A' }, { url: 'https://b.com' }],
     })
   })
 })

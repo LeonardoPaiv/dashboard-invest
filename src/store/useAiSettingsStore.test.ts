@@ -5,7 +5,7 @@ import { useAiSettingsStore } from './useAiSettingsStore'
 const store = () => useAiSettingsStore.getState()
 
 beforeEach(() => {
-  useAiSettingsStore.setState({ apiKey: '', keyStatus: 'missing', model: DEFAULT_MODEL })
+  useAiSettingsStore.setState({ apiKey: '', keyStatus: 'missing', model: DEFAULT_MODEL, webSearch: true })
 })
 
 describe('useAiSettingsStore', () => {
@@ -27,10 +27,25 @@ describe('useAiSettingsStore', () => {
     expect(store().model).toBe('deepseek/deepseek-r1')
   })
 
-  it('persists key and model but not the key status', () => {
+  it('persists key, model and web search but not the key status', () => {
     store().setApiKey('sk-or-abc', 'valid')
     const saved = JSON.parse(localStorage.getItem('ai-settings') || '{}')
-    expect(saved.state).toEqual({ apiKey: 'sk-or-abc', model: DEFAULT_MODEL })
+    expect(saved.state).toEqual({ apiKey: 'sk-or-abc', model: DEFAULT_MODEL, webSearch: true })
+  })
+
+  it('starts with web search on and lets the user turn it off', () => {
+    expect(store().webSearch).toBe(true)
+    store().setWebSearch(false)
+    expect(store().webSearch).toBe(false)
+  })
+
+  it('keeps web search on for settings saved before the option existed, and restores it when off', async () => {
+    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'k', model: 'x/y' }, version: 0 }))
+    await useAiSettingsStore.persist.rehydrate()
+    expect(store().webSearch).toBe(true)
+    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'k', model: 'x/y', webSearch: false }, version: 0 }))
+    await useAiSettingsStore.persist.rehydrate()
+    expect(store().webSearch).toBe(false)
   })
 
   it('rehydrates a saved key as "unknown" so it is validated again', async () => {

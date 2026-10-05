@@ -8,7 +8,7 @@ import { ModelPicker } from './ModelPicker'
 const settings = () => useAiSettingsStore.getState()
 
 beforeEach(() => {
-  useAiSettingsStore.setState({ apiKey: 'sk-or-abc', keyStatus: 'valid', model: DEFAULT_MODEL })
+  useAiSettingsStore.setState({ apiKey: 'sk-or-abc', keyStatus: 'valid', model: DEFAULT_MODEL, webSearch: true })
 })
 
 describe('ModelPicker', () => {
@@ -40,5 +40,15 @@ describe('ModelPicker', () => {
     await userEvent.click(screen.getByRole('button', { name: /space-bunny-alpha/ }))
     await userEvent.click(screen.getByRole('button', { name: 'Trocar chave da API' }))
     expect(settings()).toMatchObject({ apiKey: '', keyStatus: 'missing' })
+  })
+
+  it('toggles web search', async () => {
+    render(<ModelPicker />)
+    await userEvent.click(screen.getByRole('button', { name: /space-bunny-alpha/ }))
+    const toggle = screen.getByRole('switch', { name: /Busca na web/ })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await userEvent.click(toggle)
+    expect(settings().webSearch).toBe(false)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
   })
 })

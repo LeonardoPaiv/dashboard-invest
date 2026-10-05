@@ -1,8 +1,9 @@
 import {
   createChatCompletion,
-  type AssistantMessage,
+  type AssistantReply,
   type ChatCompletionParams,
   type ChatMessage,
+  type Citation,
 } from '../lib/openrouter/client'
 import { buildSystemPrompt } from './systemPrompt'
 import { TOOL_DEFINITIONS, executeTool, type Proposal, type ToolContext } from './tools'
@@ -13,7 +14,8 @@ export interface AgentTurnInput {
   history: ChatMessage[]
   userContent: string
   toolContext: ToolContext | (() => ToolContext)
-  complete?: (params: ChatCompletionParams) => Promise<AssistantMessage>
+  webSearch?: boolean
+  complete?: (params: ChatCompletionParams) => Promise<AssistantReply>
   maxSteps?: number
 }
 
@@ -21,6 +23,7 @@ export interface AgentTurnResult {
   history: ChatMessage[]
   reply: string
   proposals: Proposal[]
+  citations: Citation[]
 }
 
 export async function runAgentTurn({
@@ -29,27 +32,33 @@ export async function runAgentTurn({
   history,
   userContent,
   toolContext,
+  webSearch = false,
   complete = createChatCompletion,
   maxSteps = 6,
 }: AgentTurnInput): Promise<AgentTurnResult> {
   const messages: ChatMessage[] = [...history, { role: 'user', content: userContent }]
   const proposals: Proposal[] = []
+  const citations: Citation[] = []
   const resolveContext = (): ToolContext => (typeof toolContext === 'function' ? toolContext() : toolContext)
 
   for (let step = 0; step < maxSteps; step++) {
-    const assistant = await complete({
+    const { citations: found = [], ...assistant } = await complete({
       apiKey,
       model,
       tools: TOOL_DEFINITIONS,
-      messages: [{ role: 'system', content: buildSystemPrompt(resolveContext().currentPage) }, ...messages],
+      webSearch,
+      messages: [{ role: 'system', content: buildSystemPrompt(resolveContext().currentPage, { webSearch }) }, ...messages],
     })
     messages.push(assistant)
+    for (const citation of found) {
+      if (!citations.some((c) => c.url === citation.url)) citations.push(citation)
+    }
 
     if (!assistant.tool_calls || assistant.tool_calls.length === 0) {
       const reply =
         assistant.content?.trim() ||
         (proposals.length > 0 ? 'Confira a prévia abaixo antes de salvar.' : 'O modelo não respondeu. Tente de novo.')
-      return { history: messages, reply, proposals }
+      return { history: messages, reply, proposals, citations }
     }
 
     for (const toolCall of assistant.tool_calls) {
@@ -72,5 +81,5 @@ export async function runAgentTurn({
     }
   }
 
-  return { history: messages, reply: 'Parei depois de várias etapas sem concluir. Tente reformular o pedido.', proposals }
+  return { history: messages, reply: 'Parei depois de várias etapas sem concluir. Tente reformular o pedido.', proposals, citations }
 }

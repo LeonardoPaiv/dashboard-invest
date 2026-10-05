@@ -26,8 +26,17 @@ O padrão é `stealth/space-bunny-alpha`. O menu do modelo lista alguns predefin
 | Consultar o app | "Quanto falta para minha meta?", "Como está meu financiamento?" |
 | Configurar o app | "Muda a meta de FIIs para 30%", "Adiciona um aporte extra no financiamento" |
 | Ir para uma página | "Me leva para o plano mensal" |
+| Consultar o mercado (busca na web) | "Qual o CDI hoje?", "Quanto rendeu BBSE3 nos últimos 12 meses?" |
 
 Toda alteração aparece primeiro como **prévia**. Nada é salvo até você clicar em **Confirmar**. Confirmar aplica a alteração sem sair da página em que você está; o botão **Visualizar página** do cartão leva à página afetada (e mantém o painel flutuante aberto, se não for o Dashboard).
+
+## Busca na web
+
+- Com a busca ligada, o modelo pode pesquisar cotações, índices (CDI, Selic, IPCA), rentabilidade de ativos e notícias. Usa a server tool `openrouter:web_search`: a busca roda no OpenRouter e o próprio modelo decide quando pesquisar, até 3 buscas de 5 resultados por resposta.
+- Liga e desliga em menu do modelo → **Busca na web**. Vem ligada; a escolha fica no `localStorage` (item `ai-settings`). Um globo ao lado do nome do modelo indica que está ligada.
+- É cobrada à parte pelo OpenRouter, inclusive em modelos grátis: busca nativa do provedor (OpenAI, Anthropic, Google, xAI, Perplexity) ou Exa nos demais (cerca de US$ 0,007 por busca).
+- As fontes citadas aparecem abaixo da resposta, em **Fontes**, e ficam salvas com a conversa.
+- As posições e o preço médio continuam vindo da carteira (`get_portfolio`); a busca serve para dados de mercado que o app não tem.
 
 ## Ferramentas
 
@@ -65,7 +74,7 @@ Continuam fora: listas personalizadas, ativos do exterior do Imposto de Renda e 
 
 | Arquivo | Papel |
 | --- | --- |
-| `src/lib/openrouter/client.ts` | Chamadas HTTP ao OpenRouter |
+| `src/lib/openrouter/client.ts` | Chamadas HTTP ao OpenRouter, busca na web e citações |
 | `src/chat/tools.ts` | Ferramentas `get_portfolio`, `propose_changes`, `navigate`, `get_app_data` e `propose_settings` |
 | `src/chat/agent.ts` | Loop de tool calling |
 | `src/chat/attachments.ts` | Leitura de planilhas |
