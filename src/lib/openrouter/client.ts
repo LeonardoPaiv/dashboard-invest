@@ -18,6 +18,16 @@ export interface ToolDefinition {
   function: { name: string; description: string; parameters: Record<string, unknown> }
 }
 
+export interface Citation {
+  url: string
+  title?: string
+}
+
+export type AssistantReply = AssistantMessage & { citations?: Citation[] }
+
+// server tool: o OpenRouter executa a busca e o modelo decide quando pesquisar
+export const WEB_SEARCH_TOOL = { type: 'openrouter:web_search', parameters: { max_results: 5, max_uses: 3 } }
+
 export class OpenRouterError extends Error {
   status: number
 
@@ -42,12 +52,27 @@ export interface ChatCompletionParams {
   model: string
   messages: ChatMessage[]
   tools: ToolDefinition[]
+  webSearch?: boolean
+}
+
+export function collectCitations(annotations: unknown): Citation[] {
+  if (!Array.isArray(annotations)) return []
+  const byUrl = new Map<string, Citation>()
+  for (const annotation of annotations) {
+    const citation = annotation?.type === 'url_citation' ? annotation.url_citation : null
+    if (typeof citation?.url !== 'string' || byUrl.has(citation.url)) continue
+    byUrl.set(citation.url, {
+      url: citation.url,
+      ...(typeof citation.title === 'string' && citation.title.trim() !== '' ? { title: citation.title.trim() } : {}),
+    })
+  }
+  return [...byUrl.values()]
 }
 
 export async function createChatCompletion(
-  { apiKey, model, messages, tools }: ChatCompletionParams,
+  { apiKey, model, messages, tools, webSearch = false }: ChatCompletionParams,
   fetchImpl: typeof fetch = fetch,
-): Promise<AssistantMessage> {
+): Promise<AssistantReply> {
   const response = await fetchImpl(`${OPENROUTER_BASE_URL}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -55,7 +80,7 @@ export async function createChatCompletion(
       'Content-Type': 'application/json',
       'X-Title': 'Dashboard Invest',
     },
-    body: JSON.stringify({ model, messages, tools }),
+    body: JSON.stringify({ model, messages, tools: webSearch ? [...tools, WEB_SEARCH_TOOL] : tools }),
   })
   const body = await response.json().catch(() => null)
   if (!response.ok) {
@@ -63,9 +88,11 @@ export async function createChatCompletion(
   }
   const message = body?.choices?.[0]?.message
   if (!message) throw new OpenRouterError(body?.error?.message || 'Resposta vazia do modelo.', 502)
+  const citations = collectCitations(message.annotations)
   return {
     role: 'assistant',
     content: message.content ?? null,
     ...(Array.isArray(message.tool_calls) && message.tool_calls.length > 0 ? { tool_calls: message.tool_calls } : {}),
+    ...(citations.length > 0 ? { citations } : {}),
   }
 }

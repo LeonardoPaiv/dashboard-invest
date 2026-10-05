@@ -47,7 +47,7 @@ beforeEach(() => {
   invest().clearAllData()
   useFinancingStore.getState().resetToDefaults()
   invest().setActiveTab('dashboard')
-  useAiSettingsStore.setState({ apiKey: 'sk-or-abc', keyStatus: 'valid', model: DEFAULT_MODEL })
+  useAiSettingsStore.setState({ apiKey: 'sk-or-abc', keyStatus: 'valid', model: DEFAULT_MODEL, webSearch: true })
 })
 
 describe('sendMessage', () => {
@@ -56,7 +56,7 @@ describe('sendMessage', () => {
       { role: 'user' as const, content: 'oi' },
       { role: 'assistant' as const, content: 'Olá!' },
     ]
-    runTurn.mockResolvedValue({ history, reply: 'Olá!', proposals: [] })
+    runTurn.mockResolvedValue({ history, reply: 'Olá!', proposals: [], citations: [] })
     chat().setDraft('oi')
     await chat().sendMessage('  oi  ')
 
@@ -70,8 +70,17 @@ describe('sendMessage', () => {
     )
   })
 
+  it('sends the web search setting and shows the citations as sources', async () => {
+    const citations = [{ url: 'https://a.com', title: 'A' }]
+    runTurn.mockResolvedValue({ history: [], reply: 'CDI 14,9%', proposals: [], citations })
+    useAiSettingsStore.getState().setWebSearch(false)
+    await chat().sendMessage('qual o CDI?')
+    expect(runTurn).toHaveBeenCalledWith(expect.objectContaining({ webSearch: false }))
+    expect(chat().messages[1].sources).toEqual(citations)
+  })
+
   it('attaches proposals to the assistant message', async () => {
-    runTurn.mockResolvedValue({ history: [], reply: 'Prévia pronta.', proposals: [proposal()] })
+    runTurn.mockResolvedValue({ history: [], reply: 'Prévia pronta.', proposals: [proposal()], citations: [] })
     await chat().sendMessage('Comprei 10 ITUB4 a 30')
     expect(chat().messages[1].proposals).toEqual([proposal()])
   })
@@ -89,7 +98,7 @@ describe('sendMessage', () => {
     runTurn.mockReturnValue(new Promise((r) => (resolve = r)))
     const pending = chat().sendMessage('oi')
     expect(chat().typing).toBe(true)
-    resolve({ history: [], reply: 'ok', proposals: [] })
+    resolve({ history: [], reply: 'ok', proposals: [], citations: [] })
     await pending
     expect(chat().typing).toBe(false)
   })
@@ -124,7 +133,7 @@ describe('sendMessage', () => {
   })
 
   it('sends the attachment content to the model and shows the file on the user message', async () => {
-    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [] })
+    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [], citations: [] })
     chat().stageFile(new File(['Ativo;Cotas\nTAEE11;80\n'], 'posicao.csv'))
     await chat().sendMessage('')
     expect(chat().messages[0]).toMatchObject({
@@ -153,7 +162,7 @@ describe('sendMessage', () => {
     runTurn.mockReturnValue(new Promise((r) => (resolve = r)))
     const pending = chat().sendMessage('oi')
     chat().newChat()
-    resolve({ history: [{ role: 'user', content: 'oi' }], reply: 'tarde demais', proposals: [] })
+    resolve({ history: [{ role: 'user', content: 'oi' }], reply: 'tarde demais', proposals: [], citations: [] })
     await pending
     expect(chat()).toMatchObject({ messages: [], history: [], typing: false })
   })
@@ -164,7 +173,7 @@ describe('sendMessage async ordering', () => {
 
   it('is typing immediately when a staged file is being read', async () => {
     const finish = deferredAttachment()
-    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [] })
+    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [], citations: [] })
     chat().stageFile(csv())
     const pending = chat().sendMessage('importa')
     expect(chat().typing).toBe(true)
@@ -175,7 +184,7 @@ describe('sendMessage async ordering', () => {
 
   it('ignores a second send while the attachment is being read', async () => {
     const finish = deferredAttachment()
-    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [] })
+    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [], citations: [] })
     chat().stageFile(csv())
     const first = chat().sendMessage('importa')
     const second = chat().sendMessage('importa')
@@ -195,7 +204,7 @@ describe('sendMessage async ordering', () => {
     expect(runTurn).not.toHaveBeenCalled()
     expect(chat()).toMatchObject({ messages: [], typing: false })
 
-    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [] })
+    runTurn.mockResolvedValue({ history: [], reply: 'ok', proposals: [], citations: [] })
     await chat().sendMessage('oi')
     expect(chat().messages.map((m) => m.text)).toEqual(['oi', 'ok'])
   })
@@ -210,7 +219,7 @@ describe('sendMessage async ordering', () => {
       { role: 'user' as const, content: 'oi' },
       { role: 'assistant' as const, content: 'ok' },
     ]
-    resolve({ history: resultHistory, reply: 'ok', proposals: [] })
+    resolve({ history: resultHistory, reply: 'ok', proposals: [], citations: [] })
     await pending
     expect(chat().history).toEqual([
       ...resultHistory,
@@ -385,7 +394,7 @@ describe('confirmProposal — settings', () => {
 })
 
 describe('saved conversations', () => {
-  const reply = (text: string) => runTurn.mockResolvedValueOnce({ history: [{ role: 'user', content: 'x' }, { role: 'assistant', content: text }], reply: text, proposals: [] })
+  const reply = (text: string) => runTurn.mockResolvedValueOnce({ history: [{ role: 'user', content: 'x' }, { role: 'assistant', content: text }], reply: text, proposals: [], citations: [] })
 
   it('saves the conversation as it grows, titled and tagged with the current page', async () => {
     invest().setActiveTab('financiamento')
@@ -459,7 +468,7 @@ describe('saved conversations', () => {
     const pending = chat().sendMessage('segunda')
     await Promise.resolve()
     chat().openConversation(firstId)
-    resolve({ history: [], reply: 'atrasada', proposals: [] })
+    resolve({ history: [], reply: 'atrasada', proposals: [], citations: [] })
     await pending
     expect(chat().messages.map((m) => m.text)).toEqual(['primeira', 'Olá!'])
     expect(chat().typing).toBe(false)
@@ -477,7 +486,7 @@ describe('saved conversations', () => {
     chat().newChat()
     toolContext().navigate('financiamento')
     toolContext().selectPortfolio('all')
-    resolve({ history: [], reply: 'atrasada', proposals: [] })
+    resolve({ history: [], reply: 'atrasada', proposals: [], citations: [] })
     await pending
     expect(invest().activeTab).toBe('dashboard')
     expect(invest().activePortfolioId).toBe('default')
@@ -532,7 +541,7 @@ describe('saved conversations', () => {
 describe('floating panel', () => {
   it('opens on the relevant conversation of the current page and closes', async () => {
     invest().setActiveTab('financiamento')
-    runTurn.mockResolvedValueOnce({ history: [], reply: 'ok', proposals: [] })
+    runTurn.mockResolvedValueOnce({ history: [], reply: 'ok', proposals: [], citations: [] })
     await chat().sendMessage('sobre financiamento')
     const id = chat().conversationId
     chat().newChat()

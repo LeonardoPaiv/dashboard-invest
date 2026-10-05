@@ -8,7 +8,7 @@ import type { Proposal, ToolContext } from '../chat/tools'
 import { collectCategories } from '../domain/assets'
 import { isPageId, type PageId } from '../domain/pages'
 import { runSettingsOperations } from '../domain/settingsOperations'
-import { OpenRouterError, type ChatMessage } from '../lib/openrouter/client'
+import { OpenRouterError, type ChatMessage, type Citation } from '../lib/openrouter/client'
 import { useAiSettingsStore } from './useAiSettingsStore'
 import { resolveWritablePortfolioId, useInvestmentStore } from './useInvestmentStore'
 
@@ -23,6 +23,7 @@ export interface UiMessage {
   text: string
   file?: ChatFile
   proposals?: Proposal[]
+  sources?: Citation[]
   isError?: boolean
 }
 
@@ -196,9 +197,9 @@ export const useChatStore = create<ChatStore>()(
           const userMessage: UiMessage = { id: newId(), role: 'user', text, ...(file ? { file } : {}) }
           set((state) => ({ messages: [...state.messages, userMessage], draft: '', stagedFile: null }))
 
-          const { apiKey, model } = useAiSettingsStore.getState()
+          const { apiKey, model, webSearch } = useAiSettingsStore.getState()
           try {
-            const result = await runAgentTurn({ apiKey, model, history, userContent, toolContext: () => {
+            const result = await runAgentTurn({ apiKey, model, history, userContent, webSearch, toolContext: () => {
                 const context = buildToolContext()
                 const live = () => get().session === session
                 return {
@@ -219,6 +220,7 @@ export const useChatStore = create<ChatStore>()(
                   role: 'assistant',
                   text: result.reply,
                   ...(result.proposals.length > 0 ? { proposals: result.proposals } : {}),
+                  ...(result.citations?.length ? { sources: result.citations } : {}),
                 },
               ],
             }))

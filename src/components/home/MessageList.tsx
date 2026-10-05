@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Bot, FileSpreadsheet } from 'lucide-react'
+import type { Citation } from '../../lib/openrouter/client'
 import { shortModelName } from '../../lib/openrouter/models'
 import { useAiSettingsStore } from '../../store/useAiSettingsStore'
 import { useChatStore, type UiMessage } from '../../store/useChatStore'
@@ -31,6 +32,34 @@ const UserMessage = ({ message }: { message: UiMessage }) => (
   </div>
 )
 
+const MAX_SOURCES = 6
+
+const sourceLabel = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+const Sources = ({ sources }: { sources: Citation[] }) => (
+  <div className="flex flex-wrap items-center gap-1.5">
+    <span className="text-[10px] font-black uppercase tracking-widest text-white/30 mr-1">Fontes</span>
+    {sources.slice(0, MAX_SOURCES).map((source) => (
+      <a
+        key={source.url}
+        href={source.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={source.title || source.url}
+        className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-[10px] font-semibold text-white/60 hover:text-white hover:border-primary/30 transition-colors"
+      >
+        {sourceLabel(source.url)}
+      </a>
+    ))}
+  </div>
+)
+
 const AssistantMessage = ({ message }: { message: UiMessage }) => (
   <div className="flex gap-3 items-start">
     <BotAvatar />
@@ -42,6 +71,7 @@ const AssistantMessage = ({ message }: { message: UiMessage }) => (
       >
         {message.text}
       </div>
+      {message.sources && message.sources.length > 0 && <Sources sources={message.sources} />}
       {message.proposals?.map((proposal) => (
         <ProposalCard key={proposal.id} messageId={message.id} proposal={proposal} />
       ))}

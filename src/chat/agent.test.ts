@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { OpenRouterError, type AssistantMessage, type ChatCompletionParams } from '../lib/openrouter/client'
+import { OpenRouterError, type AssistantReply, type ChatCompletionParams } from '../lib/openrouter/client'
 import { createEmptyPortfolioData } from '../store/useInvestmentStore'
 import { runAgentTurn } from './agent'
 import type { ExtraAmortizationConfig, FinancingParameters } from '../types/financing'
@@ -58,8 +58,8 @@ const call = (id: string, name: string, args: unknown) => ({
   function: { name, arguments: JSON.stringify(args) },
 })
 
-const scripted = (...replies: AssistantMessage[]) => {
-  const complete = vi.fn<(params: ChatCompletionParams) => Promise<AssistantMessage>>()
+const scripted = (...replies: AssistantReply[]) => {
+  const complete = vi.fn<(params: ChatCompletionParams) => Promise<AssistantReply>>()
   replies.forEach((reply) => complete.mockResolvedValueOnce(reply))
   return complete
 }
@@ -80,6 +80,7 @@ describe('runAgentTurn', () => {
       apiKey: 'k',
       model: 'm/x',
       tools: TOOL_DEFINITIONS,
+      webSearch: false,
       messages: [
         { role: 'system', content: buildSystemPrompt('dashboard') },
         { role: 'user', content: 'oi' },
@@ -141,7 +142,7 @@ describe('runAgentTurn', () => {
   })
 
   it('stops after maxSteps with an explanation', async () => {
-    const looping: AssistantMessage = { role: 'assistant', content: null, tool_calls: [call('c', 'get_portfolio', {})] }
+    const looping: AssistantReply = { role: 'assistant', content: null, tool_calls: [call('c', 'get_portfolio', {})] }
     const complete = vi.fn().mockResolvedValue(looping)
     const result = await runAgentTurn({ ...base, complete, maxSteps: 2 })
     expect(complete).toHaveBeenCalledTimes(2)
@@ -236,5 +237,30 @@ describe('runAgentTurn', () => {
     )
     await runAgentTurn({ ...base, toolContext: factory, complete })
     expect(factory.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('passes web search to the model and tells it in the system prompt', async () => {
+    const complete = scripted({ role: 'assistant', content: 'ok' })
+    await runAgentTurn({ ...base, webSearch: true, complete })
+    const sent = complete.mock.calls[0][0]
+    expect(sent.webSearch).toBe(true)
+    expect(sent.messages[0].content).toBe(buildSystemPrompt('dashboard', { webSearch: true }))
+    expect(sent.messages[0].content).toContain('Você pode pesquisar na web')
+    expect(buildSystemPrompt('dashboard')).toContain('Você não tem acesso à internet')
+  })
+
+  it('collects citations from every step without duplicates and keeps them out of the history', async () => {
+    const complete = scripted(
+      {
+        role: 'assistant',
+        content: null,
+        tool_calls: [call('c1', 'get_portfolio', {})],
+        citations: [{ url: 'https://a.com', title: 'A' }],
+      },
+      { role: 'assistant', content: 'ok', citations: [{ url: 'https://a.com', title: 'A' }, { url: 'https://b.com' }] },
+    )
+    const result = await runAgentTurn({ ...base, webSearch: true, complete })
+    expect(result.citations).toEqual([{ url: 'https://a.com', title: 'A' }, { url: 'https://b.com' }])
+    expect(result.history.some((m) => 'citations' in m)).toBe(false)
   })
 })

@@ -23,5 +23,9 @@ Regras de trabalho:
 17. Confirmar uma prévia não muda de página: as alterações são aplicadas pelo chat e o cartão tem um botão "Visualizar página". Não chame navigate só porque propôs ou salvou uma alteração; use-o quando o usuário pedir para ver a página.`
 
 
-export const buildSystemPrompt = (page: PageId): string =>
-  `${SYSTEM_PROMPT}\n\nPáginas do app: ${PAGES.map((p) => `${p.id} (${p.label}: ${p.about})`).join('; ')}.\nO usuário está agora na página "${pageLabel(page)}" (${page}).`
+const WEB_SEARCH_ON = `18. Você pode pesquisar na web: cotações, CDI, Selic, IPCA, rentabilidade de ações, FIIs, fundos e títulos, e notícias de mercado. Use a busca para dados de mercado atuais que o app não tem; para as posições, quantidades e preço médio do usuário continue usando get_portfolio. Diga a data e a fonte do dado em texto simples, sem links nem markdown: o app mostra as fontes abaixo da resposta. Ao calcular rentabilidade, deixe claro o período e se inclui proventos. Continue sem recomendar comprar ou vender ativos.`
+
+const WEB_SEARCH_OFF = `18. Você não tem acesso à internet. Se pedirem cotação ou outro dado de mercado atual que o app não tem, diga que a busca na web está desligada no menu do modelo; não invente valores.`
+
+export const buildSystemPrompt = (page: PageId, { webSearch = false }: { webSearch?: boolean } = {}): string =>
+  `${SYSTEM_PROMPT}\n${webSearch ? WEB_SEARCH_ON : WEB_SEARCH_OFF}\n\nPáginas do app: ${PAGES.map((p) => `${p.id} (${p.label}: ${p.about})`).join('; ')}.\nO usuário está agora na página "${pageLabel(page)}" (${page}).`
