@@ -11,7 +11,9 @@ No **Dashboard** o **Assistente** (chat) fica ancorado ao lado da **carteira** (
 
 ## Modelo
 
-O padrão é `stealth/space-bunny-alpha`. O menu do modelo lista alguns predefinidos e aceita qualquer ID do OpenRouter que suporte *tool calling*.
+Só modelos grátis (`:free`). O padrão é `nvidia/nemotron-3-ultra-550b-a55b:free`. O menu do modelo lista os grátis com *tool calling* disponíveis no OpenRouter e aceita outro ID, desde que termine em `:free`. Um modelo pago salvo antes volta para o padrão.
+
+**Automático** usa o Free Models Router (`openrouter/free`), que sorteia a cada pedido um modelo grátis que suporte *tool calling*. O Auto Router (`openrouter/auto`) não é usado porque escolhe modelos pagos.
 
 ## O que o Assistente faz
 

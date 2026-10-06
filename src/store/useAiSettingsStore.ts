@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_MODEL } from '../lib/openrouter/models'
+import { DEFAULT_MODEL, isFreeModel } from '../lib/openrouter/models'
 
 export type KeyStatus = 'missing' | 'unknown' | 'valid' | 'invalid'
 
@@ -26,7 +26,8 @@ export const useAiSettingsStore = create<AiSettingsStore>()(
       setApiKey: (key, status) => set({ apiKey: key.trim(), keyStatus: status }),
       markKeyStatus: (keyStatus) => set({ keyStatus }),
       clearApiKey: () => set({ apiKey: '', keyStatus: 'missing' }),
-      setModel: (model) => set((state) => ({ model: model.trim() || state.model })),
+      // só modelos grátis: um ID pago (ou vazio) é ignorado
+      setModel: (model) => set((state) => ({ model: isFreeModel(model.trim()) ? model.trim() : state.model })),
       setWebSearch: (webSearch) => set({ webSearch }),
     }),
     {
@@ -37,7 +38,8 @@ export const useAiSettingsStore = create<AiSettingsStore>()(
         return {
           ...current,
           apiKey: saved.apiKey || '',
-          model: saved.model || current.model,
+          // modelo pago salvo antes da restrição volta para o padrão grátis
+          model: saved.model && isFreeModel(saved.model) ? saved.model : current.model,
           webSearch: typeof saved.webSearch === 'boolean' ? saved.webSearch : current.webSearch,
           keyStatus: saved.apiKey ? 'unknown' : 'missing',
         }

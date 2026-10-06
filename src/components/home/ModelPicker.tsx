@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { ChevronDown, Globe } from 'lucide-react'
-import { MODEL_PRESETS, shortModelName } from '../../lib/openrouter/models'
+import { MODEL_PRESETS, isFreeModel, shortModelName } from '../../lib/openrouter/models'
 import { useAiSettingsStore } from '../../store/useAiSettingsStore'
 
 export const ModelPicker = () => {
@@ -29,7 +29,7 @@ export const ModelPicker = () => {
   }
 
   const onCustomKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter' && custom.trim() !== '') {
+    if (event.key === 'Enter' && isFreeModel(custom.trim())) {
       event.preventDefault()
       choose(custom)
     }
@@ -52,28 +52,31 @@ export const ModelPicker = () => {
       {open && (
         <div className="absolute top-full right-0 mt-2 min-w-[260px] bg-[#0a0a0a] border border-white/10 rounded-2xl p-1.5 shadow-2xl z-50">
           <div className="px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-white/30">
-            Modelos via OpenRouter
+            Modelos grátis via OpenRouter
           </div>
-          {MODEL_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => choose(preset.id)}
-              className={`w-full flex justify-between items-center gap-3 text-left px-3 py-2 rounded-lg transition-colors ${
-                preset.id === model ? 'bg-primary text-white' : 'text-white/60 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <span className="text-[11px] font-bold">{preset.id}</span>
-              <span className="text-[10px] font-semibold opacity-60">{preset.note}</span>
-            </button>
-          ))}
+          <div className="max-h-72 overflow-y-auto custom-scrollbar">
+            {MODEL_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                title={preset.id}
+                onClick={() => choose(preset.id)}
+                className={`w-full flex justify-between items-center gap-3 text-left px-3 py-2 rounded-lg transition-colors ${
+                  preset.id === model ? 'bg-primary text-white' : 'text-white/60 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <span className="text-[11px] font-bold">{preset.name}</span>
+                <span className="text-[10px] font-semibold opacity-60">{preset.note}</span>
+              </button>
+            ))}
+          </div>
           <div className="mt-1.5 pt-1.5 border-t border-white/5 flex flex-col gap-1.5">
             <input
               aria-label="Outro modelo"
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
               onKeyDown={onCustomKeyDown}
-              placeholder="Outro modelo: provedor/nome + Enter"
+              placeholder="Outro modelo grátis: provedor/nome:free + Enter"
               spellCheck={false}
               className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-[11px] text-white placeholder:text-white/30 outline-none focus:border-primary/50"
             />

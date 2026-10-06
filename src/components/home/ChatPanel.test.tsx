@@ -93,7 +93,7 @@ describe('ChatPanel', () => {
     expect(screen.getByText('extrato.xlsx')).toBeInTheDocument()
     expect(screen.getByText('Planilha · 3 abas')).toBeInTheDocument()
     expect(screen.getByText('Encontrei 4 posições.')).toBeInTheDocument()
-    expect(screen.getByText('space-bunny-alpha está analisando…')).toBeInTheDocument()
+    expect(screen.getByText('Nemotron 3 Ultra está analisando…')).toBeInTheDocument()
     expect(screen.queryByText('Como posso ajudar?')).not.toBeInTheDocument()
   })
 

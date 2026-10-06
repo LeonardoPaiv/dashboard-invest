@@ -10,7 +10,7 @@ beforeEach(() => {
 
 describe('useAiSettingsStore', () => {
   it('starts without a key and with the default model', () => {
-    expect(store()).toMatchObject({ apiKey: '', keyStatus: 'missing', model: 'stealth/space-bunny-alpha' })
+    expect(store()).toMatchObject({ apiKey: '', keyStatus: 'missing', model: 'nvidia/nemotron-3-ultra-550b-a55b:free' })
   })
 
   it('saves and clears the key', () => {
@@ -20,11 +20,15 @@ describe('useAiSettingsStore', () => {
     expect(store()).toMatchObject({ apiKey: '', keyStatus: 'missing' })
   })
 
-  it('ignores an empty model id', () => {
+  it('ignores an empty or paid model id', () => {
     store().setModel('   ')
     expect(store().model).toBe(DEFAULT_MODEL)
-    store().setModel(' deepseek/deepseek-r1 ')
-    expect(store().model).toBe('deepseek/deepseek-r1')
+    store().setModel('deepseek/deepseek-r1')
+    expect(store().model).toBe(DEFAULT_MODEL)
+    store().setModel(' google/gemma-4-31b-it:free ')
+    expect(store().model).toBe('google/gemma-4-31b-it:free')
+    store().setModel('openrouter/free')
+    expect(store().model).toBe('openrouter/free')
   })
 
   it('persists key, model and web search but not the key status', () => {
@@ -40,18 +44,24 @@ describe('useAiSettingsStore', () => {
   })
 
   it('keeps web search on for settings saved before the option existed, and restores it when off', async () => {
-    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'k', model: 'x/y' }, version: 0 }))
+    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'k', model: 'x/y:free' }, version: 0 }))
     await useAiSettingsStore.persist.rehydrate()
     expect(store().webSearch).toBe(true)
-    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'k', model: 'x/y', webSearch: false }, version: 0 }))
+    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'k', model: 'x/y:free', webSearch: false }, version: 0 }))
     await useAiSettingsStore.persist.rehydrate()
     expect(store().webSearch).toBe(false)
   })
 
   it('rehydrates a saved key as "unknown" so it is validated again', async () => {
-    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'sk-or-abc', model: 'x/y' }, version: 0 }))
+    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'sk-or-abc', model: 'x/y:free' }, version: 0 }))
     await useAiSettingsStore.persist.rehydrate()
-    expect(store()).toMatchObject({ apiKey: 'sk-or-abc', keyStatus: 'unknown', model: 'x/y' })
+    expect(store()).toMatchObject({ apiKey: 'sk-or-abc', keyStatus: 'unknown', model: 'x/y:free' })
+  })
+
+  it('replaces a saved paid model with the free default', async () => {
+    localStorage.setItem('ai-settings', JSON.stringify({ state: { apiKey: 'k', model: 'stealth/space-bunny-alpha' }, version: 0 }))
+    await useAiSettingsStore.persist.rehydrate()
+    expect(store().model).toBe(DEFAULT_MODEL)
   })
 
   it('rehydrates as "missing" when nothing is saved', async () => {
